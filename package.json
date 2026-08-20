@@ -12,9 +12,13 @@
     "start": "vinext start",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
+    "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
+    "db:init": "npx tsx db/init.ts",
+    "db:seed": "npx tsx db/seed.ts",
+    "test:phase1": "npx tsx --test tests/auth.test.mjs"
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
     "drizzle-orm": "0.45.2",
     "next": "16.2.6",
     "react": "19.2.6",
@@ -23,6 +27,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
     "@tailwindcss/postcss": "4.2.1",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
@@ -39,5 +44,5 @@
     "wrangler": "4.92.0"
   },
   "type": "module",
-  "displayName": "Aprova Digital \u2014 Apostilas para Concursos"
+  "displayName": "Aprova Digital — Apostilas para Concursos"
 }
