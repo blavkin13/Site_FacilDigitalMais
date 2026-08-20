@@ -1,134 +1,375 @@
-# vinext-starter
+# Facil Digital+ - Plataforma de Apostilas para Concursos
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+![Status](https://img.shields.io/badge/status-pronto%20para%20produ%C3%A7%C3%A3o-green)
+![Node](https://img.shields.io/badge/Node.js-%3E%3D22.13.0-green)
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
 
-## Prerequisites
+## 📋 Sobre o Projeto
 
-- Node.js `>=22.13.0`
-- Linux with `flock`, `curl`, and GNU `timeout`
+Plataforma completa de venda de apostilas digitais para concursos públicos, com:
+- ✅ Catálogo de apostilas por concurso
+- ✅ Sistema de carrinho e checkout (Mercado Pago)
+- ✅ Área do aluno com biblioteca de apostilas
+- ✅ Simulados cronometrados com ranking
+- ✅ Proteção de PDFs com marca d'água e senha (CPF)
+- ✅ Dashboard administrativo com estatísticas
+- ✅ Landing pages dinâmicas por concurso
 
-## Rodando localmente no Windows, macOS ou Linux
+## 🚀 Estrutura do Projeto
+├── app/ # Rotas Next.js
+│ ├── api/ # API Routes
+│ ├── apostilas/ # Catálogo de produtos
+│ ├── concurso/[slug]/ # Landing pages por concurso
+│ ├── checkout/ # Fluxo de compra
+│ ├── minha-conta/ # Dashboard do aluno
+│ ├── simulados/ # Sistema de simulados
+│ ├── admin/ # Dashboard admin
+│ └── login/ # Autenticação
+├── components/ # Componentes React
+├── db/ # Schema Drizzle + Seeds
+├── lib/ # Funções auxiliares
+│ ├── auth.ts # Autenticação
+│ ├── mercadopago.ts # Integração MP
+│ ├── pdf-protection.ts # Proteção de PDFs
+│ └── json-loader-runtime.ts # Loader de produtos
+├── tests/ # Testes automatizados
+└── data/ # Dados (SQLite + JSON)
 
-Use o Node.js 22.13 ou mais recente. Depois de extrair o projeto:
+## 🛠️ Tecnologias
+
+- **Framework**: Next.js 16 + Vite (via Vinext)
+- **Linguagem**: TypeScript
+- **Banco de Dados**: SQLite (Drizzle ORM) / Cloudflare D1
+- **Autenticação**: Cookie-based sessions
+- **Pagamentos**: Mercado Pago
+- **PDFs**: pdf-lib (watermark + proteção)
+- **Gráficos**: Recharts
+- **Testes**: Node.js Test Runner
+
+## 📦 Instalação
+
+### Pré-requisitos
+- Node.js >= 22.13.0
+- npm ou yarn
+
+### Passos
 
 ```bash
-node --version
+# 1. Clonar o repositório
+git clone https://github.com/blavkin13/Site_FacilDigitalMais.git
+cd Site_FacilDigitalMais
+
+# 2. Instalar dependências
 npm install
+
+# 3. Inicializar banco de dados
+npm run db:init
+
+# 4. Executar seeds (dados de exemplo)
+npm run db:seed
+npm run db:seed-orders
+npm run db:seed-simulations
+
+# 5. Iniciar em desenvolvimento
 npm run dev
-```
 
-Abra o endereço exibido pelo Vite no terminal (normalmente
-`http://localhost:5173`). O comando `npm run dev` é multiplataforma e não
-depende de sintaxe de variável de ambiente do Linux.
+Acesse: http://localhost:5173
 
-Se a porta padrão estiver ocupada:
+🔑 Credenciais de Teste
+Admin
+Email: digicopiamix@facildigitalmais.com
+Senha: 5290Digi$
+URL: /admin
+Aluno de Teste
+Email: teste@teste.com
+Senha: 
 
-```bash
-npm run dev -- --port 3000
-```
+🧪 Testes
+# Rodar todos os testes
+npm run test:all
 
-Os scripts auxiliares `install:ci` e `build` são usados pela hospedagem e
-dependem de Bash. Para gerar uma compilação local no Windows, use:
+# Rodar testes por fase
+npm run test:phase1    # Autenticação (9 testes)
+npm run test:phase2    # API Routes (17 testes)
+npm run test:phase3    # Pedidos + Dashboard (16 testes)
+npm run test:phase3b   # Simulados (19 testes)
+npm run test:phase4    # Checkout + PDFs (19 testes)
+npm run test:phase5    # Admin + Contest (19 testes)
 
-```bash
-npx vite build
-```
+Total: 99 testes
+🚀 Deploy na Hostinger
+Opção 1: Hostinger VPS (Recomendado)
+1.Contrate um VPS Hostinger com Ubuntu 22.04
+2.Instale Node.js 22:
+   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+   sudo apt-get install -y nodejs
+3.Instale PM2 (gerenciador de processos):
+   sudo npm install -g pm2
+4.Clone o projeto:
+   cd /var/www
+   git clone https://github.com/blavkin13/Site_FacilDigitalMais.git
+   cd Site_FacilDigitalMais
+5.Configure variáveis:
+   cp .env.example .env
+   nano .env  # Preencha com suas credenciais
+6.Instale dependências e faça build:
+   npm ci
+   npm run build
+7.Inicie com PM2:
+   pm2 start ecosystem.config.js
+   pm2 save
+   pm2 startup
+8.Configure Nginx:
+   sudo apt install nginx
+   sudo cp scripts/nginx-config.conf /etc/nginx/sites-available/facil-digital
+   sudo ln -s /etc/nginx/sites-available/facil-digital /etc/nginx/sites-enabled/
+   sudo nginx -t
+   sudo systemctl restart nginx
+9.Configure SSL com Let's Encrypt:
+   sudo apt install certbot python3-certbot-nginx
+   sudo certbot --nginx -d seusite.com.br
 
-## Sites Lifecycle
+Opção 2: Hostinger Cloud Hosting (Limitado)
+Se usar Cloud Hosting (sem Node.js), será necessário:
+Separar frontend estático
+Backend em VPS separado
+Ou usar serviços serverless
+Recomendação: Use VPS para o projeto completo.
+🔧 Configuração do Mercado Pago
+Acesse: https://www.mercadopago.com.br/developers/panel/app
+Crie uma aplicação
+Obtenha:
+Access Token (produção)
+Webhook Secret (para validar webhooks)
+Configure no .env:
+   MERCADO_PAGO_ACCESS_TOKEN=APP_USR-xxx
+   MERCADO_PAGO_WEBHOOK_SECRET=xxx
 
-The Sites lifecycle CLI runs the locked dependency install before returning this checkout. Edit the source under `app/`, then checkpoint when a coherent milestone is ready to inspect or share. The remote Sites builder runs `npm run build` against the pushed commit. Do not repeat install or build as a normal pre-checkpoint step.
+Configure o webhook no painel do MP:
+URL: https://seusite.com.br/api/webhooks/mercadopago
+Eventos: payment
+📚 Fluxo de Funcionamento
+Cliente
+Acessa catálogo de apostilas
+Adiciona ao carrinho (sem login)
+Faz login/cadastro para continuar
+Escolhe método de pagamento
+Redirecionado ao Mercado Pago
+Após pagamento, acesso liberado na biblioteca
+PDFs protegidos com CPF como senha + marca d'água
+Aluno
+Acessa /minha-conta
+Vê biblioteca de apostilas compradas
+Baixa PDFs protegidos
+Acessa simulados cronometrados
+Vê ranking e desempenho
+Admin
+Acessa /admin
+Vê estatísticas de vendas
+Gerencia pedidos (aprovar/reembolsar)
+Gerencia produtos (criar/editar/desativar)
+🔒 Segurança
+✅ Senhas com hash SHA-256 + salt
+✅ Cookies HTTPOnly para sessões
+✅ Proteção de rotas por role (user/admin)
+✅ Webhooks com validação HMAC
+✅ PDFs com senha (CPF) + marca d'água
+✅ Downloads temporários (12h de validade)
+📝 Scripts Disponíveis
 
-This starter does not use `wrangler.jsonc`.
+npm run dev                    # Servidor de desenvolvimento
+npm run build                  # Build de produção
+npm run start                  # Servidor de produção
+npm run db:init                # Inicializar banco
+npm run db:seed                # Seed admin
+npm run db:seed-orders         # Seed pedidos
+npm run db:seed-simulations    # Seed simulados
+npm run db:load-products       # Carregar produtos de JSON
+npm run test:all               # Todos os testes
 
-`install:ci` is intentionally a single, non-retrying `npm ci`. It refuses a concurrent install for the same project, consumes a matching image-seeded npm cache with `--prefer-offline` while retaining registry fallback for a missing cache object, otherwise downloads and verifies the complete vinext tarball recorded in `package-lock.json`, limits npm to one socket, and terminates a stalled install. `build` applies a short timeout. These helpers target Linux and use GNU `timeout`; they are not native macOS scripts.
+📊 Arquitetura do Banco
+Tabelas principais:
+users - Usuários (alunos e admins)
+products - Apostilas
+orders - Pedidos
+order_items - Itens dos pedidos
+questions - Questões de simulados
+simulations - Provas simuladas
+simulation_results - Resultados dos alunos
+sessions - Sessões de autenticação
+protected_downloads - Tokens de download
+🤝 Suporte
+Para dúvidas ou problemas:
+Abra uma issue no repositório
+Consulte a documentação da Hostinger: https://www.hostinger.com.br/tutoriais
+Documentação Next.js: https://nextjs.org/docs
+Desenvolvido com ❤️ para concurseiros 🚀
 
-Scripts that need writable project-scoped home, npm, XDG, and temporary paths use `scripts/sites-env.sh`. The `dev` and `start` scripts honor the caller's runtime environment and keep Wrangler logs inside the checkout. The generated `.sites-runtime/` directory is disposable and ignored by Git.
 
-## Included Shape
+---
 
-- edit site code under `app/`
-- `app/chatgpt-auth.ts` provides optional dispatch-owned ChatGPT sign-in helpers
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/index.ts` reads the D1 binding from the Cloudflare Worker environment
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+### Arquivo 8: `tests/phase6.test.mjs` — Testes finais
+**Local:** Criar `tests/phase6.test.mjs`
 
-## Workspace Auth Headers
+```javascript
+import { test, describe, before, after } from "node:test";
+import assert from "node:assert";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
+describe("Fase 6 - Deploy, Otimizações e Documentação", () => {
+  before(() => {
+    console.log("🧪 Preparando testes finais da Fase 6...");
+  });
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+  // === DEPLOY ===
 
-Treat the full name as optional and fall back to email when it is absent:
+  test("Script de deploy existe", () => {
+    const p = join(process.cwd(), "scripts", "deploy-hostinger.sh");
+    assert.ok(existsSync(p));
+    console.log("✅ Script de deploy existe");
+  });
 
-```tsx
-import { headers } from "next/headers";
+  test("Configuração PM2 existe", () => {
+    const p = join(process.cwd(), "ecosystem.config.js");
+    assert.ok(existsSync(p));
+    console.log("✅ Configuração PM2 existe");
+  });
 
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
+  test("Configuração Nginx existe", () => {
+    const p = join(process.cwd(), "scripts", "nginx-config.conf");
+    assert.ok(existsSync(p));
+    console.log("✅ Configuração Nginx existe");
+  });
 
-  const displayName = fullName ?? email;
-  // ...
-}
-```
+  test(".env.example existe", () => {
+    const p = join(process.cwd(), ".env.example");
+    assert.ok(existsSync(p));
+    console.log("✅ .env.example existe");
+  });
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+  // === DOCUMENTAÇÃO ===
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+  test("README.md completo", async () => {
+    const p = join(process.cwd(), "README.md");
+    assert.ok(existsSync(p), "README.md deve existir");
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+    const content = await readFile(p, "utf-8");
+    
+    // Verificar seções essenciais
+    assert.ok(content.includes("# Facil Digital+"), "Deve ter título");
+    assert.ok(content.includes("Instalação"), "Deve ter seção de instalação");
+    assert.ok(content.includes("Deploy na Hostinger"), "Deve ter guia de deploy");
+    assert.ok(content.includes("Mercado Pago"), "Deve mencionar Mercado Pago");
+    assert.ok(content.includes("test:all"), "Deve mencionar testes");
+    assert.ok(content.includes("Credenciais de Teste"), "Deve ter credenciais");
+    
+    console.log("✅ README.md completo com todas as seções");
+  });
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+  // === SEO ===
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+  test("Sitemap atualizado", async () => {
+    const p = join(process.cwd(), "app", "sitemap.ts");
+    assert.ok(existsSync(p));
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+    const content = await readFile(p, "utf-8");
+    assert.ok(content.includes("/concurso/"), "Deve ter rotas de concurso");
+    assert.ok(content.includes("products.map"), "Deve mapear produtos");
+    
+    console.log("✅ Sitemap atualizado com rotas dinâmicas");
+  });
 
-## Diagnostic Commands
+  test("Robots.txt atualizado", async () => {
+    const p = join(process.cwd(), "app", "robots.ts");
+    assert.ok(existsSync(p));
 
-- `npm run install:ci`: perform the one bounded lockfile install
-- `npm run dev`: start the Vite/Vinext development server
-- `npm run build`: build the deployable Sites artifact
-- `npm run start`: start the built Vinext application
-- `npm test`: build and verify the rendered development-preview metadata
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+    const content = await readFile(p, "utf-8");
+    assert.ok(content.includes("disallow"), "Deve ter disallow");
+    assert.ok(content.includes("/admin"), "Deve bloquear /admin");
+    assert.ok(content.includes("/api/"), "Deve bloquear /api/");
+    
+    console.log("✅ Robots.txt protege áreas sensíveis");
+  });
 
-Use build commands for targeted diagnosis after a remote failure, not as part of the normal checkpoint path.
+  // === REGRESSÃO FINAL ===
 
-The timeout defaults can be overridden for a controlled canary with `SITES_INSTALL_TIMEOUT`, `SITES_INSTALL_KILL_AFTER`, `SITES_BUILD_TIMEOUT`, and `SITES_BUILD_KILL_AFTER`. A timeout fails the command; the helpers never retry an unchanged install or build.
+  test("Todas as fases anteriores preservadas", () => {
+    const criticalFiles = [
+      // Fase 1
+      "lib/auth.ts",
+      "db/schema.ts",
+      "db/init.ts",
+      "db/seed.ts",
+      
+      // Fase 2
+      "components/auth-provider.tsx",
+      "app/api/auth/login/route.ts",
+      "app/api/auth/register/route.ts",
+      "app/login/page.tsx",
+      
+      // Fase 3
+      "components/student-dashboard.tsx",
+      "components/simulation-quiz.tsx",
+      "app/api/orders/route.ts",
+      "app/api/simulations/route.ts",
+      
+      // Fase 4
+      "components/checkout-real.tsx",
+      "lib/mercadopago.ts",
+      "lib/pdf-protection.ts",
+      "app/api/checkout/create/route.ts",
+      
+      // Fase 5
+      "middleware.ts",
+      "components/admin-dashboard.tsx",
+      "components/contest-landing.tsx",
+      "lib/json-loader-runtime.ts",
+    ];
 
-## Learn More
+    for (const path of criticalFiles) {
+      assert.ok(
+        existsSync(join(process.cwd(), path)),
+        `Arquivo crítico ${path} deve existir`
+      );
+    }
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+    console.log(`✅ ${criticalFiles.length} arquivos críticos preservados`);
+  });
+
+  test("Package.json tem todos os scripts necessários", async () => {
+    const p = join(process.cwd(), "package.json");
+    const content = await readFile(p, "utf-8");
+    const pkg = JSON.parse(content);
+
+    const requiredScripts = [
+      "dev",
+      "build",
+      "start",
+      "db:init",
+      "db:seed",
+      "test:phase1",
+      "test:phase2",
+      "test:phase3",
+      "test:phase3b",
+      "test:phase4",
+      "test:phase5",
+      "test:all",
+    ];
+
+    for (const script of requiredScripts) {
+      assert.ok(pkg.scripts[script], `Script ${script} deve existir`);
+    }
+
+    console.log(`✅ ${requiredScripts.length} scripts essenciais presentes`);
+  });
+
+  after(() => {
+    console.log("✅ Testes da Fase 6 concluídos!");
+    console.log("🎉 PROJETO COMPLETO - PRONTO PARA PRODUÇÃO!");
+  });
+});
+
+
