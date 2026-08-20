@@ -17,12 +17,14 @@
     "db:seed": "npx tsx db/seed.ts",
     "db:seed-orders": "npx tsx db/seed-orders.ts",
     "db:seed-simulations": "npx tsx db/seed-simulations.ts",
-    "test:phase1": "npx tsx --test --test-concurrency=1 tests/auth.test.mjs",
-    "test:phase2": "npx tsx --test --test-concurrency=1 tests/phase2.test.mjs",
-    "test:phase3": "npx tsx --test --test-concurrency=1 tests/phase3.test.mjs",
-    "test:phase3b": "npx tsx --test --test-concurrency=1 tests/phase3b.test.mjs",
-    "test:phase4": "npx tsx --test --test-concurrency=1 tests/phase4.test.mjs",
-    "test:all": "npm run test:phase1 && npm run test:phase2 && npm run test:phase3 && npm run test:phase3b && npm run test:phase4"
+    "db:load-products": "npx tsx -e 'import { loadProductsToDb } from \"./lib/json-loader-runtime.js\"; import { initDatabase } from \"./db/init.js\"; await initDatabase(); await loadProductsToDb();'",
+    "test:phase1": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/auth.test.mjs",
+    "test:phase2": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase2.test.mjs",
+    "test:phase3": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase3.test.mjs",
+    "test:phase3b": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase3b.test.mjs",
+    "test:phase4": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase4.test.mjs",
+    "test:phase5": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase5.test.mjs",
+    "test:all": "npm run test:phase1 && npm run test:phase2 && npm run test:phase3 && npm run test:phase3b && npm run test:phase4 && npm run test:phase5"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
@@ -31,7 +33,8 @@
     "next": "16.2.6",
     "pdf-lib": "^1.17.1",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
