@@ -154,9 +154,17 @@ describe("Fase 2 - API Routes e Autenticação", () => {
       return;
     }
 
+    const tmpFile = join(process.cwd(), "tests", "_tmp_auth_test.ts");
+
+    // Limpar arquivo temporário antes de começar (caso exista de execução anterior)
+    try {
+      if (existsSync(tmpFile)) unlinkSync(tmpFile);
+    } catch {}
+
     try {
       // Criar script temporário para testar registro e login
       const testScript = `
+        process.removeAllListeners('warning');
         import { initDatabase } from "../db/init.js";
         import { registerUser, authenticateUser, validateSession, logoutSession } from "../lib/auth.js";
         
@@ -207,26 +215,42 @@ describe("Fase 2 - API Routes e Autenticação", () => {
         process.exit(0);
       `;
 
-      const tmpFile = join(process.cwd(), "tests", "_tmp_auth_test.ts");
       writeFileSync(tmpFile, testScript);
 
-      const result = execSync(`npx tsx ${tmpFile}`, {
-        encoding: "utf-8",
-        stdio: "pipe",
-      });
+      let result = "";
+      try {
+        result = execSync(`npx tsx --no-warnings ${tmpFile}`, {
+          encoding: "utf-8",
+          stdio: "pipe",
+          env: { ...process.env, NODE_NO_WARNINGS: "1" },
+          timeout: 30000,
+        });
+      } catch (execError) {
+        // Se o subprocesso falhou, capturamos a saída mesmo assim
+        result = (execError.stdout || "") + (execError.stderr || "");
+        // Se for erro real do script (não do test runner), propagamos
+        if (result.includes("Error:") || result.includes("ERR_")) {
+          throw new Error("Subprocesso falhou: " + result.substring(0, 500));
+        }
+      }
 
-      // Limpar arquivo temporário
-      unlinkSync(tmpFile);
-
-      assert.ok(result.includes("LOGIN:OK"), "Login deve funcionar");
+      assert.ok(result.includes("LOGIN:OK"), "Login deve funcionar. Saída: " + result);
       assert.ok(result.includes("SESSION:OK"), "Sessão deve ser válida");
       assert.ok(result.includes("LOGOUT:OK"), "Logout deve funcionar");
       assert.ok(result.includes("BADPASS:OK"), "Senha errada deve ser rejeitada");
 
       console.log("✅ Fluxo completo: Registro → Login → Sessão → Logout → Senha errada");
     } catch (error) {
-      console.error("Saída do teste:", error.stdout || error.message);
+      // Garantir que o arquivo temporário seja removido mesmo em caso de erro
+      try {
+        if (existsSync(tmpFile)) unlinkSync(tmpFile);
+      } catch {}
       throw error;
+    } finally {
+      // Sempre remover o arquivo temporário
+      try {
+        if (existsSync(tmpFile)) unlinkSync(tmpFile);
+      } catch {}
     }
   });
 

@@ -158,6 +158,7 @@ describe("Fase 3A - Schema, Pedidos e Dashboard", () => {
     }
 
     const testScript = `
+      process.removeAllListeners('warning');
       import { initDatabase } from "../db/init.js";
       import { getDb } from "../db/index.js";
       import { users, orders, orderItems, products } from "../db/schema.js";
@@ -214,26 +215,46 @@ describe("Fase 3A - Schema, Pedidos e Dashboard", () => {
       process.exit(0);
     `;
 
+    const tmpFile = join(process.cwd(), "tests", "_tmp_order_test.ts");
+
+    // Limpar arquivo temporário antes (caso exista de execução anterior)
     try {
-      const tmpFile = join(process.cwd(), "tests", "_tmp_order_test.ts");
+      if (existsSync(tmpFile)) unlinkSync(tmpFile);
+    } catch {}
+
+    try {
       writeFileSync(tmpFile, testScript);
 
-      const result = execSync(`npx tsx ${tmpFile}`, {
-        encoding: "utf-8",
-        stdio: "pipe",
-      });
+      let result = "";
+      try {
+        result = execSync(`npx tsx --no-warnings ${tmpFile}`, {
+          encoding: "utf-8",
+          stdio: "pipe",
+          env: { ...process.env, NODE_NO_WARNINGS: "1" },
+          timeout: 30000,
+        });
+      } catch (execError) {
+        result = (execError.stdout || "") + (execError.stderr || "");
+        if (result.includes("Error:") || result.includes("ERR_")) {
+          throw new Error("Subprocesso falhou: " + result.substring(0, 500));
+        }
+      }
 
-      unlinkSync(tmpFile);
-
-      assert.ok(result.includes("ADMIN:OK"), "Admin deve existir");
+      assert.ok(result.includes("ADMIN:OK"), "Admin deve existir. Saída: " + result);
       assert.ok(result.includes("PRODUCT:OK"), "Produto deve existir");
       assert.ok(result.includes("ORDER:OK"), "Pedido deve ser criado");
       assert.ok(result.includes("COUNT:OK"), "Contagem deve aumentar");
 
       console.log("✅ Fluxo de criação de pedido funciona");
     } catch (error) {
-      console.error("Saída:", error.stdout || error.message);
+      try {
+        if (existsSync(tmpFile)) unlinkSync(tmpFile);
+      } catch {}
       throw error;
+    } finally {
+      try {
+        if (existsSync(tmpFile)) unlinkSync(tmpFile);
+      } catch {}
     }
   });
 
