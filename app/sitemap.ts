@@ -1,0 +1,2 @@
+import type { MetadataRoute } from "next";import { products } from "../lib/products";
+export default function sitemap():MetadataRoute.Sitemap{const base="https://aprova-digital-apostilas.facildigitalmais.chatgpt.site";return["","/apostilas","/simulados","/editais","/minha-conta",...products.map(p=>`/apostilas/${p.slug}`)].map((url,i)=>({url:base+url,lastModified:new Date("2026-08-20"),changeFrequency:i<2?"weekly":"monthly",priority:i===0?1:i===1?0.9:0.7}))}

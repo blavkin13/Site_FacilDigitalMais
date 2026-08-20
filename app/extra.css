@@ -1,0 +1,5 @@
+.info-content{max-width:800px;padding-block:60px 90px}
+.info-content article{display:grid;grid-template-columns:42px 1fr;gap:18px;padding:22px 0;border-bottom:1px solid var(--line)}
+.info-content article>span{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#eaf1ff;color:var(--blue);font-size:10px;font-weight:900}
+.info-content p{margin:6px 0;color:#506178;line-height:1.8}
+.info-content>.button{margin-top:30px}

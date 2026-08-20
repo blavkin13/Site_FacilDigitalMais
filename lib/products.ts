@@ -1,0 +1,46 @@
+export type Product = {
+  slug: string; title: string; shortTitle: string; category: string; bank: string; level: string;
+  pages: number; questions: number; oldPrice: number; price: number; pixPrice: number; updated: string;
+  cover: string; coverClass: string; kicker: string; description: string; highlights: string[];
+  syllabus: { title: string; pages: number; questions: number; topics: string[] }[];
+  testimonial: { name: string; role: string; quote: string; score: string };
+};
+
+export const products: Product[] = [
+  {
+    slug: "transpetro-auxiliar-de-saude", title: "Transpetro — Auxiliar de Saúde", shortTitle: "Auxiliar de Saúde", category: "Saúde", bank: "Cesgranrio", level: "Técnico", pages: 684, questions: 820,
+    oldPrice: 129.9, price: 79.9, pixPrice: 75.91, updated: "Agosto de 2026", cover: "/covers/cover-saude.png", coverClass: "health", kicker: "Preparação completa para quem cuida de pessoas e quer cuidar do próprio futuro.",
+    description: "Do SUS à saúde ocupacional: teoria aprofundada, revisões estratégicas e questões no estilo Cesgranrio para uma preparação segura.",
+    highlights: ["Conteúdo conforme o último edital", "820 questões comentadas", "Atualizações gratuitas até a prova"],
+    syllabus: [
+      { title: "Língua Portuguesa", pages: 94, questions: 160, topics: ["Interpretação de textos", "Coesão e coerência", "Gramática aplicada"] },
+      { title: "Saúde Ocupacional", pages: 214, questions: 280, topics: ["PCMSO e NR-07", "Vigilância em saúde", "Primeiros socorros"] },
+      { title: "Conhecimentos de Enfermagem", pages: 302, questions: 320, topics: ["Procedimentos técnicos", "Biossegurança", "Urgência e emergência"] },
+    ], testimonial: { name: "Rafaela Lima", role: "Técnica de enfermagem aprovada", quote: "As revisões e as questões fizeram toda diferença na reta final. Eu sabia exatamente onde precisava melhorar.", score: "91% no simulado final" },
+  },
+  {
+    slug: "transpetro-contabilidade", title: "Transpetro — Contabilidade", shortTitle: "Contabilidade", category: "Estatais", bank: "Cesgranrio", level: "Superior", pages: 742, questions: 960,
+    oldPrice: 149.9, price: 89.9, pixPrice: 85.41, updated: "Agosto de 2026", cover: "/covers/cover-contabilidade.png", coverClass: "accounting", kicker: "Números organizados. Estratégia calibrada. Aprovação no horizonte.",
+    description: "Uma preparação de alto nível em contabilidade geral, custos, tributária e auditoria, com foco no padrão de cobrança da Cesgranrio.",
+    highlights: ["Teoria + mapas de revisão", "960 questões selecionadas", "Caderno de normas atualizado"],
+    syllabus: [
+      { title: "Contabilidade Geral", pages: 196, questions: 280, topics: ["Patrimônio e escrituração", "Demonstrações contábeis", "Regime de competência"] },
+      { title: "Contabilidade de Custos", pages: 164, questions: 210, topics: ["Métodos de custeio", "Margem de contribuição", "Análise custo-volume-lucro"] },
+      { title: "Auditoria e Controle", pages: 138, questions: 190, topics: ["Normas de auditoria", "Controles internos", "Riscos e evidências"] },
+    ], testimonial: { name: "Carlos Nogueira", role: "Contador aprovado em estatal", quote: "O material conseguiu ser profundo sem ser confuso. As questões comentadas revelaram o padrão da banca.", score: "86% de acertos" },
+  },
+  {
+    slug: "transpetro-tecnico-ambiental", title: "Transpetro — Técnico Ambiental", shortTitle: "Técnico Ambiental", category: "Meio ambiente", bank: "Cesgranrio", level: "Técnico", pages: 618, questions: 780,
+    oldPrice: 129.9, price: 79.9, pixPrice: 75.91, updated: "Agosto de 2026", cover: "/covers/cover-ambiental.png", coverClass: "environment", kicker: "Conhecimento técnico para proteger o ambiente e conquistar seu lugar.",
+    description: "Legislação, licenciamento, gestão de resíduos e emergências ambientais organizados para o contexto industrial e portuário.",
+    highlights: ["Legislação ambiental atualizada", "780 questões comentadas", "Casos aplicados à indústria"],
+    syllabus: [
+      { title: "Legislação Ambiental", pages: 172, questions: 220, topics: ["Política Nacional do Meio Ambiente", "Crimes ambientais", "Competências e fiscalização"] },
+      { title: "Gestão e Licenciamento", pages: 156, questions: 210, topics: ["EIA/RIMA", "Condicionantes", "Sistemas de gestão ambiental"] },
+      { title: "Controle Ambiental", pages: 204, questions: 270, topics: ["Resíduos e efluentes", "Emergências ambientais", "Monitoramento"] },
+    ], testimonial: { name: "Ana Beatriz", role: "Técnica ambiental aprovada", quote: "A parte de legislação finalmente fez sentido. O conteúdo aplicado à rotina industrial me deixou muito mais segura.", score: "1ª colocada na região" },
+  },
+];
+
+export const getProduct = (slug: string) => products.find((product) => product.slug === slug);
+export const formatPrice = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
