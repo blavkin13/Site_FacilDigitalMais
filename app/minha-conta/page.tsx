@@ -1,3 +1,11 @@
-import type { Metadata } from "next";import Link from "next/link";import { products } from "../../lib/products";
-export const metadata:Metadata={title:"Área do aluno",description:"Biblioteca e desempenho do aluno."};
-export default function StudentArea(){const p=products[0];return <main className="student-page"><section className="student-hero"><div className="container"><div><span className="eyebrow eyebrow-light"><i/> Área do aluno demonstrativa</span><h1>Bom dia, futuro aprovado.</h1><p>Você já avançou <strong>72%</strong> na meta desta semana.</p></div><div className="weekly-ring"><strong>72%</strong><span>meta semanal</span></div></div></section><div className="container student-grid"><aside className="student-menu"><b>MINHA CONTA</b><a className="active" href="#biblioteca">▤ Biblioteca</a><a href="#desempenho">↗ Desempenho</a><Link href="/simulados">✓ Simulados</Link><a href="#perfil">♙ Perfil e segurança</a><small>Ambiente demonstrativo sem dados pessoais reais.</small></aside><div className="student-content"><section id="biblioteca"><header><div><span>MINHA BIBLIOTECA</span><h2>Continue de onde parou</h2></div><Link href="/apostilas">Explorar catálogo →</Link></header><article className="library-item"><div className={`library-cover ${p.coverClass}`} style={{backgroundImage:`linear-gradient(180deg,transparent,rgba(4,20,40,.92)),url(${p.cover})`}}><strong>{p.shortTitle}</strong></div><div><span className="status-open">ATUALIZADA</span><h3>{p.title}</h3><p>Última leitura: Saúde ocupacional • página 184</p><div className="library-progress"><i/></div><small>27% concluído</small><footer><button className="button button-primary">Continuar leitura</button><button className="button button-ghost">Baixar PDF protegido</button></footer></div></article></section><section className="performance-panel" id="desempenho"><header><div><span>SEU DESEMPENHO</span><h2>A consistência está aparecendo.</h2></div><strong>+9,4%</strong></header><div className="performance-grid"><article><small>QUESTÕES NA SEMANA</small><strong>184</strong><span>meta: 220</span></article><article><small>TAXA DE ACERTO</small><strong>78%</strong><span>↑ 6% no mês</span></article><article><small>SEQUÊNCIA</small><strong>12 dias</strong><span>seu recorde</span></article></div></section></div></div></main>}
+import type { Metadata } from "next";
+import { StudentDashboard } from "../../components/student-dashboard";
+
+export const metadata: Metadata = {
+  title: "Área do aluno",
+  description: "Biblioteca e desempenho do aluno.",
+};
+
+export default function StudentArea() {
+  return <StudentDashboard />;
+}

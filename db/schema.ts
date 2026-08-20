@@ -1,7 +1,9 @@
-import { sqliteTable, text, integer, real, blob } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
-// Tabela de Usuários
+// ==========================================
+// TABELA DE USUÁRIOS
+// ==========================================
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   email: text("email").notNull().unique(),
@@ -14,7 +16,9 @@ export const users = sqliteTable("users", {
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
 
-// Tabela de Produtos (Apostilas)
+// ==========================================
+// TABELA DE PRODUTOS (APOSTILAS)
+// ==========================================
 export const products = sqliteTable("products", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   slug: text("slug").notNull().unique(),
@@ -36,20 +40,22 @@ export const products = sqliteTable("products", {
   highlights: text("highlights"), // JSON array
   syllabus: text("syllabus"), // JSON array
   testimonial: text("testimonial"), // JSON object
-  mpLink: text("mp_link"), // Link do Mercado Pago
-  pdfPath: text("pdf_path"), // Caminho do PDF no storage
+  mpLink: text("mp_link"),
+  pdfPath: text("pdf_path"),
   active: integer("active", { mode: "boolean" }).default(true),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
 
-// Tabela de Pedidos
+// ==========================================
+// TABELA DE PEDIDOS
+// ==========================================
 export const orders = sqliteTable("orders", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("user_id").notNull().references(() => users.id),
   status: text("status", { enum: ["pending", "approved", "rejected", "refunded"] }).notNull().default("pending"),
   paymentMethod: text("payment_method"),
-  mpPaymentId: text("mp_payment_id"), // ID do pagamento no Mercado Pago
+  mpPaymentId: text("mp_payment_id"),
   subtotal: real("subtotal").notNull(),
   discount: real("discount").default(0),
   total: real("total").notNull(),
@@ -58,7 +64,9 @@ export const orders = sqliteTable("orders", {
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
 
-// Tabela de Itens do Pedido
+// ==========================================
+// TABELA DE ITENS DO PEDIDO
+// ==========================================
 export const orderItems = sqliteTable("order_items", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   orderId: integer("order_id").notNull().references(() => orders.id),
@@ -68,44 +76,52 @@ export const orderItems = sqliteTable("order_items", {
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
 });
 
-// Tabela de Questões (Simulados)
+// ==========================================
+// TABELA DE QUESTÕES (SIMULADOS)
+// ==========================================
 export const questions = sqliteTable("questions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  bank: text("bank").notNull(), // Cesgranrio, Cebraspe, etc
-  subject: text("subject").notNull(), // Português, Matemática, etc
+  bank: text("bank").notNull(),
+  subject: text("subject").notNull(),
   questionText: text("question_text").notNull(),
-  options: text("options").notNull(), // JSON array de alternativas
-  correctAnswer: integer("correct_answer").notNull(), // Índice da resposta correta (0-4)
+  options: text("options").notNull(), // JSON array
+  correctAnswer: integer("correct_answer").notNull(),
   explanation: text("explanation"),
   difficulty: text("difficulty", { enum: ["easy", "medium", "hard"] }).default("medium"),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
 });
 
-// Tabela de Simulados (Provas)
+// ==========================================
+// TABELA DE SIMULADOS (PROVAS)
+// ==========================================
 export const simulations = sqliteTable("simulations", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   title: text("title").notNull(),
   bank: text("bank").notNull(),
   description: text("description"),
   timeLimit: integer("time_limit").notNull(), // em minutos
-  questionIds: text("question_ids").notNull(), // JSON array de IDs de questões
+  questionIds: text("question_ids").notNull(), // JSON array
   active: integer("active", { mode: "boolean" }).default(true),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
 });
 
-// Tabela de Resultados de Simulados
+// ==========================================
+// TABELA DE RESULTADOS DE SIMULADOS
+// ==========================================
 export const simulationResults = sqliteTable("simulation_results", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("user_id").notNull().references(() => users.id),
   simulationId: integer("simulation_id").notNull().references(() => simulations.id),
-  score: integer("score").notNull(), // número de acertos
+  score: integer("score").notNull(),
   totalQuestions: integer("total_questions").notNull(),
-  timeSpent: integer("time_spent").notNull(), // em segundos
-  answers: text("answers").notNull(), // JSON array com respostas do usuário
+  timeSpent: integer("time_spent").notNull(),
+  answers: text("answers").notNull(), // JSON array
   completedAt: text("completed_at").notNull().default(sql`(datetime('now'))`),
 });
 
-// Tabela de Sessões (para autenticação)
+// ==========================================
+// TABELA DE SESSÕES
+// ==========================================
 export const sessions = sqliteTable("sessions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("user_id").notNull().references(() => users.id),
@@ -114,7 +130,9 @@ export const sessions = sqliteTable("sessions", {
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
 });
 
-// Tabela de Downloads Protegidos (PDFs temporários)
+// ==========================================
+// TABELA DE DOWNLOADS PROTEGIDOS
+// ==========================================
 export const protectedDownloads = sqliteTable("protected_downloads", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("user_id").notNull().references(() => users.id),
@@ -125,13 +143,17 @@ export const protectedDownloads = sqliteTable("protected_downloads", {
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
 });
 
-// Exportar todos os schemas
+// ==========================================
+// TIPOS EXPORTADOS
+// ==========================================
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
 export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;
+export type OrderItem = typeof orderItems.$inferSelect;
+export type NewOrderItem = typeof orderItems.$inferInsert;
 export type Question = typeof questions.$inferSelect;
 export type NewQuestion = typeof questions.$inferInsert;
 export type Simulation = typeof simulations.$inferSelect;
@@ -140,3 +162,5 @@ export type SimulationResult = typeof simulationResults.$inferSelect;
 export type NewSimulationResult = typeof simulationResults.$inferInsert;
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
+export type ProtectedDownload = typeof protectedDownloads.$inferSelect;
+export type NewProtectedDownload = typeof protectedDownloads.$inferInsert;

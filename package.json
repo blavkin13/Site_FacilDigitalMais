@@ -16,7 +16,9 @@
     "db:init": "npx tsx db/init.ts",
     "db:seed": "npx tsx db/seed.ts",
     "test:phase1": "npx tsx --test tests/auth.test.mjs",
-    "test:phase2": "npx tsx --test tests/phase2.test.mjs"
+    "test:phase2": "npx tsx --test tests/phase2.test.mjs",
+    "db:seed-orders": "npx tsx db/seed-orders.ts",
+    "test:phase3": "npx tsx --test tests/phase3.test.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
