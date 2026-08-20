@@ -1172,3 +1172,153 @@
   padding: 1.5rem 0;
   flex-wrap: wrap;
 }
+
+/* ==========================================
+   CHECKOUT REAL STYLES
+   ========================================== */
+
+.checkout-auth-required {
+  padding: 4rem 1rem;
+  text-align: center;
+  background: #f8f9fa;
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkout-auth-required .button {
+  margin-top: 1rem;
+}
+
+.checkout-empty-full {
+  padding: 4rem 1rem;
+  text-align: center;
+  color: #888;
+}
+
+.checkout-empty-full span {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 1rem;
+  opacity: 0.3;
+}
+
+.cpf-warning {
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  color: #92400e;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+}
+
+.cpf-warning a {
+  color: #92400e;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.checkout-error {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fee2e2;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.payment-security {
+  display: block;
+  text-align: center;
+  margin-top: 0.75rem;
+  color: #666;
+  font-size: 0.8rem;
+}
+
+.total-row {
+  border-top: 2px solid #0a2a52;
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+/* CHECKOUT SUCCESS */
+.checkout-success-page {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(170deg, #f0fdf4, #fff);
+}
+
+.success-container {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: #fff;
+  border-radius: 1rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  max-width: 500px;
+  margin: 1rem;
+}
+
+.success-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  background: #d1fae5;
+  color: #16a34a;
+  border-radius: 50%;
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.success-container small {
+  display: block;
+  color: #16a34a;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.success-container h1 {
+  color: #0a2a52;
+  font-size: 1.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.success-container p {
+  color: #666;
+  margin-bottom: 2rem;
+}
+
+.success-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+}
+
+.success-info {
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.success-info small {
+  color: #888;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.8rem;
+}

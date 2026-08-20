@@ -15,17 +15,21 @@
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
     "db:init": "npx tsx db/init.ts",
     "db:seed": "npx tsx db/seed.ts",
-    "test:phase1": "npx tsx --test tests/auth.test.mjs",
-    "test:phase2": "npx tsx --test tests/phase2.test.mjs",
     "db:seed-orders": "npx tsx db/seed-orders.ts",
-    "test:phase3": "npx tsx --test tests/phase3.test.mjs",
     "db:seed-simulations": "npx tsx db/seed-simulations.ts",
-    "test:phase3b": "npx tsx --test tests/phase3b.test.mjs"
+    "test:phase1": "npx tsx --test --test-concurrency=1 tests/auth.test.mjs",
+    "test:phase2": "npx tsx --test --test-concurrency=1 tests/phase2.test.mjs",
+    "test:phase3": "npx tsx --test --test-concurrency=1 tests/phase3.test.mjs",
+    "test:phase3b": "npx tsx --test --test-concurrency=1 tests/phase3b.test.mjs",
+    "test:phase4": "npx tsx --test --test-concurrency=1 tests/phase4.test.mjs",
+    "test:all": "npm run test:phase1 && npm run test:phase2 && npm run test:phase3 && npm run test:phase3b && npm run test:phase4"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "0.45.2",
+    "mercadopago": "^3.4.0",
     "next": "16.2.6",
+    "pdf-lib": "^1.17.1",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },

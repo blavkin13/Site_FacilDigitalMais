@@ -27,6 +27,54 @@ interface UserOrder {
   items: OrderItem[];
 }
 
+// Componente de botão de download protegido
+function DownloadButton({ productSlug, disabled }: { productSlug: string; disabled: boolean }) {
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleDownload() {
+    if (!productSlug) return;
+
+    setDownloading(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/download/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ productSlug }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        // Abrir o link de download
+        window.open(data.downloadUrl, "_blank");
+      } else {
+        setError(data.error || "Erro ao gerar download.");
+        alert(data.error || "Erro ao gerar download.");
+      }
+    } catch {
+      setError("Erro de conexão.");
+      alert("Erro de conexão.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <button
+      className="button button-primary"
+      onClick={handleDownload}
+      disabled={downloading || disabled}
+      title={disabled ? "Cadastre seu CPF para baixar" : "Baixar PDF protegido"}
+    >
+      {downloading ? "Gerando..." : "⬇ Baixar PDF protegido"}
+    </button>
+  );
+}
+
 export function StudentDashboard() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<UserOrder[]>([]);
@@ -177,9 +225,10 @@ export function StudentDashboard() {
                           {new Date(item.purchasedAt).toLocaleDateString("pt-BR")}
                         </p>
                         <footer>
-                          <button className="button button-primary" disabled>
-                            Baixar PDF protegido
-                          </button>
+                          <DownloadButton
+                            productSlug={item.productSlug || ""}
+                            disabled={!user?.cpf}
+                          />
                           <button className="button button-ghost" disabled>
                             Detalhes
                           </button>

@@ -46,3 +46,11 @@ data/*.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
+
+# PDFs protegidos temporários
+data/protected/
+
+# Arquivos de ambiente
+.env
+.env.local
+.env.production
