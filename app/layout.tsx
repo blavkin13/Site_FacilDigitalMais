@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { SiteHeader } from "../components/site-header";
 import { SiteFooter } from "../components/site-footer";
 import { ShopProvider } from "../components/shop-provider";
+import { AuthProvider } from "../components/auth-provider";
 import "./globals.css";
 import "./extra.css";
 
@@ -19,5 +20,17 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="pt-BR"><body><ShopProvider><SiteHeader />{children}<SiteFooter /></ShopProvider></body></html>;
+  return (
+    <html lang="pt-BR">
+      <body>
+        <AuthProvider>
+          <ShopProvider>
+            <SiteHeader />
+            {children}
+            <SiteFooter />
+          </ShopProvider>
+        </AuthProvider>
+      </body>
+    </html>
+  );
 }
