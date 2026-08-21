@@ -40,12 +40,13 @@
     "test:phase2b-product-page": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2b-product-page.test.mjs",
     "test:phase2c-contest": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2c-contest-page.test.mjs",
     "test:phase2d": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2d-single-source.test.mjs",
-
     "test:phase2e": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2e-database-isolation.test.mjs",
+
+    "test:phase3a-admin": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3a-admin-products.test.mjs",
 
     "test:production-build": "rm -rf .next && next build",
 
-    "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:production-build",
+    "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:production-build",
 
     "validate": "node scripts/validate-all.mjs"
   },

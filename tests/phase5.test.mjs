@@ -270,48 +270,92 @@ describe("Fase 5 - Admin, Contest Pages e JSON Loader", () => {
     );
   });
 
-  test("API admin/products tem CRUD completo", async () => {
-    const content = await readFile(
-      join(
-        process.cwd(),
-        "app",
-        "api",
-        "admin",
-        "products",
-        "route.ts"
-      ),
-      "utf-8"
-    );
+  test(
+    "API admin/products tem CRUD completo",
+    async () => {
+      const content =
+        await readFile(
+          join(
+            process.cwd(),
+            "app",
+            "api",
+            "admin",
+            "products",
+            "route.ts"
+          ),
+          "utf-8"
+        );
 
-    assert.ok(
-      content.includes("export async function GET"),
-      "Deve ter GET"
-    );
 
-    assert.ok(
-      content.includes("export async function POST"),
-      "Deve ter POST"
-    );
+      assert.ok(
+        content.includes(
+          "export async function GET"
+        ),
+        "Deve ter GET"
+      );
 
-    assert.ok(
-      content.includes("export async function PATCH"),
-      "Deve ter PATCH"
-    );
 
-    assert.ok(
-      content.includes("export async function DELETE"),
-      "Deve ter DELETE"
-    );
+      assert.ok(
+        content.includes(
+          "export async function POST"
+        ),
+        "Deve ter POST"
+      );
 
-    assert.ok(
-      content.includes('role !== "admin"'),
-      "API de produtos deve validar role admin"
-    );
 
-    console.log(
-      "[OK] API admin/products tem CRUD completo"
-    );
-  });
+      assert.ok(
+        content.includes(
+          "export async function PATCH"
+        ),
+        "Deve ter PATCH"
+      );
+
+
+      assert.ok(
+        content.includes(
+          "export async function DELETE"
+        ),
+        "Deve ter DELETE"
+      );
+
+
+      assert.ok(
+        content.includes(
+          "authorizeAdminRequest"
+        ),
+        "API de produtos deve utilizar o guard administrativo central"
+      );
+
+
+      assert.ok(
+        content.includes(
+          "validateAdminProductCreate"
+        ),
+        "POST deve validar a entrada administrativa"
+      );
+
+
+      assert.ok(
+        content.includes(
+          "validateAdminProductPatch"
+        ),
+        "PATCH deve validar a entrada administrativa"
+      );
+
+
+      assert.ok(
+        !content.includes(
+          "...body"
+        ),
+        "API não pode aplicar mass assignment a partir do body"
+      );
+
+
+      console.log(
+        "[OK] API admin/products tem CRUD seguro"
+      );
+    }
+  );
 
   // ============================================================
   // ADMIN DASHBOARD

@@ -1,165 +1,540 @@
-import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { getDb } from "../../../../db/index";
-import { products } from "../../../../db/schema";
-import { validateSession } from "../../../../lib/auth";
-import { initDatabase } from "../../../../db/init";
+import type {
+  NextRequest,
+} from "next/server";
 
-// GET - Listar produtos (admin)
-export async function GET(request: NextRequest) {
+import {
+  NextResponse,
+} from "next/server";
+
+import {
+  asc,
+  desc,
+  eq,
+} from "drizzle-orm";
+
+import {
+  getDb,
+} from "../../../../db/index";
+
+import {
+  products,
+} from "../../../../db/schema";
+
+import {
+  authorizeAdminRequest,
+} from "../../../../lib/admin-auth";
+
+import {
+  AdminProductValidationError,
+  validateAdminProductCreate,
+  validateAdminProductId,
+  validateAdminProductPatch,
+} from "../../../../lib/admin-product-validation";
+
+
+function validationErrorResponse(
+  error: AdminProductValidationError
+) {
+  return NextResponse.json(
+    {
+      error:
+        error.message,
+
+      field:
+        error.field,
+    },
+    {
+      status:
+        400,
+    }
+  );
+}
+
+
+function isSlugConflict(
+  error: unknown
+): boolean {
+  return (
+    error instanceof
+      Error &&
+    (
+      error.message.includes(
+        "UNIQUE constraint failed: products.slug"
+      ) ||
+      error.message.includes(
+        "products_slug_unique"
+      )
+    )
+  );
+}
+
+
+async function readJsonBody(
+  request: NextRequest
+): Promise<unknown> {
   try {
-    await initDatabase();
-    const db = getDb();
-
-    const token = request.cookies.get("fd-session")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-    }
-
-    const user = await validateSession(token);
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
-    }
-
-    const allProducts = await db.select().from(products).all();
-
-    return NextResponse.json({ products: allProducts });
-  } catch (error) {
-    console.error("Erro ao listar produtos:", error);
-    return NextResponse.json({ error: "Erro interno." }, { status: 500 });
+    return await request.json();
+  } catch {
+    throw new AdminProductValidationError(
+      "Corpo JSON inválido."
+    );
   }
 }
 
-// POST - Criar produto
-export async function POST(request: NextRequest) {
+
+/**
+ * GET
+ *
+ * Lista apostilas para o painel administrativo.
+ *
+ * Produtos ativos e inativos são retornados porque
+ * administradores precisam gerenciar ambos.
+ */
+export async function GET(
+  request: NextRequest
+) {
   try {
-    await initDatabase();
-    const db = getDb();
+    const authorization =
+      await authorizeAdminRequest(
+        request
+      );
 
-    const token = request.cookies.get("fd-session")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+
+    if (
+      !authorization.ok
+    ) {
+      return authorization.response;
     }
 
-    const user = await validateSession(token);
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+
+    const db =
+      getDb();
+
+
+    const allProducts =
+      await db
+        .select()
+        .from(
+          products
+        )
+        .orderBy(
+          desc(
+            products.updatedAt
+          ),
+          asc(
+            products.title
+          )
+        )
+        .all();
+
+
+    return NextResponse.json(
+      {
+        products:
+          allProducts,
+      }
+    );
+  } catch (
+    error
+  ) {
+    console.error(
+      "Erro ao listar apostilas:",
+      error
+    );
+
+
+    return NextResponse.json(
+      {
+        error:
+          "Erro interno.",
+      },
+      {
+        status:
+          500,
+      }
+    );
+  }
+}
+
+
+/**
+ * POST
+ *
+ * Cria nova apostila.
+ *
+ * Toda apostila criada por esta API nasce inativa.
+ *
+ * cover e pdfPath não podem ser definidos pelo JSON.
+ * Esses campos serão controlados pelos endpoints seguros
+ * de upload da Fase 3C.
+ */
+export async function POST(
+  request: NextRequest
+) {
+  try {
+    const authorization =
+      await authorizeAdminRequest(
+        request
+      );
+
+
+    if (
+      !authorization.ok
+    ) {
+      return authorization.response;
     }
 
-    const body = await request.json();
 
-    // Validação mínima
-    if (!body.slug || !body.title || !body.price) {
-      return NextResponse.json(
-        { error: "Campos obrigatórios: slug, title, price." },
-        { status: 400 }
+    const body =
+      await readJsonBody(
+        request
+      );
+
+
+    const productData =
+      validateAdminProductCreate(
+        body
+      );
+
+
+    const db =
+      getDb();
+
+
+    const result =
+      await db
+        .insert(
+          products
+        )
+        .values(
+          productData
+        )
+        .returning();
+
+
+    return NextResponse.json(
+      {
+        success:
+          true,
+
+        product:
+          result[0],
+      },
+      {
+        status:
+          201,
+      }
+    );
+  } catch (
+    error
+  ) {
+    if (
+      error instanceof
+      AdminProductValidationError
+    ) {
+      return validationErrorResponse(
+        error
       );
     }
 
-    // Serializar campos JSON
-    const productData = {
-      ...body,
-      highlights: body.highlights ? JSON.stringify(body.highlights) : null,
-      syllabus: body.syllabus ? JSON.stringify(body.syllabus) : null,
-      testimonial: body.testimonial ? JSON.stringify(body.testimonial) : null,
-    };
 
-    const result = await db.insert(products).values(productData).returning();
-
-    return NextResponse.json({ success: true, product: result[0] }, { status: 201 });
-  } catch (error: any) {
-    console.error("Erro ao criar produto:", error);
-    if (error.message?.includes("UNIQUE constraint")) {
+    if (
+      isSlugConflict(
+        error
+      )
+    ) {
       return NextResponse.json(
-        { error: "Já existe um produto com este slug." },
-        { status: 409 }
+        {
+          error:
+            "Já existe uma apostila com este slug.",
+        },
+        {
+          status:
+            409,
+        }
       );
     }
-    return NextResponse.json({ error: "Erro interno." }, { status: 500 });
+
+
+    console.error(
+      "Erro ao criar apostila:",
+      error
+    );
+
+
+    return NextResponse.json(
+      {
+        error:
+          "Erro interno.",
+      },
+      {
+        status:
+          500,
+      }
+    );
   }
 }
 
-// PATCH - Atualizar produto
-export async function PATCH(request: NextRequest) {
+
+/**
+ * PATCH
+ *
+ * Atualiza somente campos explicitamente permitidos
+ * pelo validator.
+ *
+ * Não existe mais:
+ *
+ *   const { id, ...updates } = body
+ *
+ * portanto propriedades arbitrárias nunca alcançam o ORM.
+ */
+export async function PATCH(
+  request: NextRequest
+) {
   try {
-    await initDatabase();
-    const db = getDb();
+    const authorization =
+      await authorizeAdminRequest(
+        request
+      );
 
-    const token = request.cookies.get("fd-session")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+
+    if (
+      !authorization.ok
+    ) {
+      return authorization.response;
     }
 
-    const user = await validateSession(token);
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+
+    const body =
+      await readJsonBody(
+        request
+      );
+
+
+    const {
+      id,
+      updates,
+    } =
+      validateAdminProductPatch(
+        body
+      );
+
+
+    const db =
+      getDb();
+
+
+    const result =
+      await db
+        .update(
+          products
+        )
+        .set({
+          ...updates,
+
+          updatedAt:
+            new Date()
+              .toISOString(),
+        })
+        .where(
+          eq(
+            products.id,
+            id
+          )
+        )
+        .returning();
+
+
+    if (
+      !result[0]
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Apostila não encontrada.",
+        },
+        {
+          status:
+            404,
+        }
+      );
     }
 
-    const body = await request.json();
-    const { id, ...updates } = body;
 
-    if (!id) {
-      return NextResponse.json({ error: "ID do produto é obrigatório." }, { status: 400 });
+    return NextResponse.json(
+      {
+        success:
+          true,
+
+        product:
+          result[0],
+      }
+    );
+  } catch (
+    error
+  ) {
+    if (
+      error instanceof
+      AdminProductValidationError
+    ) {
+      return validationErrorResponse(
+        error
+      );
     }
 
-    // Serializar campos JSON se presentes
-    if (updates.highlights) {
-      updates.highlights = JSON.stringify(updates.highlights);
-    }
-    if (updates.syllabus) {
-      updates.syllabus = JSON.stringify(updates.syllabus);
-    }
-    if (updates.testimonial) {
-      updates.testimonial = JSON.stringify(updates.testimonial);
+
+    if (
+      isSlugConflict(
+        error
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Já existe uma apostila com este slug.",
+        },
+        {
+          status:
+            409,
+        }
+      );
     }
 
-    await db
-      .update(products)
-      .set({
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(products.id, id));
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Erro ao atualizar produto:", error);
-    return NextResponse.json({ error: "Erro interno." }, { status: 500 });
+    console.error(
+      "Erro ao atualizar apostila:",
+      error
+    );
+
+
+    return NextResponse.json(
+      {
+        error:
+          "Erro interno.",
+      },
+      {
+        status:
+          500,
+      }
+    );
   }
 }
 
-// DELETE - Deletar produto (desativar)
-export async function DELETE(request: NextRequest) {
+
+/**
+ * DELETE
+ *
+ * Soft delete.
+ *
+ * Nenhum registro comercial é removido fisicamente.
+ * A apostila apenas deixa de ser publicada.
+ */
+export async function DELETE(
+  request: NextRequest
+) {
   try {
-    await initDatabase();
-    const db = getDb();
+    const authorization =
+      await authorizeAdminRequest(
+        request
+      );
 
-    const token = request.cookies.get("fd-session")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+
+    if (
+      !authorization.ok
+    ) {
+      return authorization.response;
     }
 
-    const user = await validateSession(token);
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+
+    const id =
+      validateAdminProductId(
+        request.nextUrl
+          .searchParams
+          .get(
+            "id"
+          )
+      );
+
+
+    const db =
+      getDb();
+
+
+    const result =
+      await db
+        .update(
+          products
+        )
+        .set({
+          active:
+            false,
+
+          updatedAt:
+            new Date()
+              .toISOString(),
+        })
+        .where(
+          eq(
+            products.id,
+            id
+          )
+        )
+        .returning();
+
+
+    if (
+      !result[0]
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Apostila não encontrada.",
+        },
+        {
+          status:
+            404,
+        }
+      );
     }
 
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
 
-    if (!id) {
-      return NextResponse.json({ error: "ID do produto é obrigatório." }, { status: 400 });
+    return NextResponse.json(
+      {
+        success:
+          true,
+
+        product:
+          result[0],
+      }
+    );
+  } catch (
+    error
+  ) {
+    if (
+      error instanceof
+      AdminProductValidationError
+    ) {
+      return validationErrorResponse(
+        error
+      );
     }
 
-    // Soft delete: apenas desativar
-    await db
-      .update(products)
-      .set({ active: false, updatedAt: new Date().toISOString() })
-      .where(eq(products.id, parseInt(id)));
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Erro ao deletar produto:", error);
-    return NextResponse.json({ error: "Erro interno." }, { status: 500 });
+    console.error(
+      "Erro ao desativar apostila:",
+      error
+    );
+
+
+    return NextResponse.json(
+      {
+        error:
+          "Erro interno.",
+      },
+      {
+        status:
+          500,
+      }
+    );
   }
 }
