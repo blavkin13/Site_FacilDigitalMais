@@ -45,9 +45,13 @@
     "test:phase3a-admin": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3a-admin-products.test.mjs",
     "test:phase3b-admin-ui": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3b-admin-apostilas.test.mjs",
 
+    "test:phase3c-upload": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3c-admin-upload.test.mjs",
+    "test:phase3c-integration": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3c-admin-integration.test.mjs",
+    "test:phase3c": "npm run test:phase3c-upload && npm run test:phase3c-integration",
+
     "test:production-build": "rm -rf .next && next build",
 
-    "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:phase3b-admin-ui test:production-build",
+    "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:phase3b-admin-ui test:phase3c test:production-build",
 
     "validate": "node scripts/validate-all.mjs"
   },

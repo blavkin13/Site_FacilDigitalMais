@@ -108,6 +108,9 @@ type StatusFilter =
   | "published"
   | "draft";
 
+type AdminAssetKind =
+  | "cover"
+  | "pdf";
 
 function emptySyllabusItem(): SyllabusFormItem {
   return {
@@ -868,6 +871,15 @@ export function AdminApostilas() {
       false
     );
 
+  const [
+    assetOperation,
+    setAssetOperation,
+  ] =
+    useState<
+      AdminAssetKind | null
+    >(
+      null
+    );
 
   async function fetchProducts() {
     setLoading(
@@ -1094,6 +1106,50 @@ export function AdminApostilas() {
     );
   }
 
+  function syncProduct(
+    product: AdminProduct
+  ) {
+    setProducts(
+      (
+        current
+      ) => {
+        const exists =
+          current.some(
+            (
+              item
+            ) =>
+              item.id ===
+              product.id
+          );
+
+
+        if (
+          !exists
+        ) {
+          return [
+            product,
+            ...current,
+          ];
+        }
+
+
+        return current.map(
+          (
+            item
+          ) =>
+            item.id ===
+            product.id
+              ? product
+              : item
+        );
+      }
+    );
+
+
+    setEditingProduct(
+      product
+    );
+  }
 
   function openCreate() {
     clearMessages();
@@ -1151,7 +1207,9 @@ export function AdminApostilas() {
 
   function closeEditor() {
     if (
-      saving
+      saving ||
+      assetOperation !==
+        null
     ) {
       return;
     }
@@ -1311,6 +1369,14 @@ export function AdminApostilas() {
     event.preventDefault();
 
 
+    if (
+      assetOperation !==
+      null
+    ) {
+      return;
+    }
+
+
     clearMessages();
 
 
@@ -1402,29 +1468,60 @@ export function AdminApostilas() {
       }
 
 
-      setNotice(
+      const savedProduct =
+        data.product as
+          AdminProduct;
+
+
+      syncProduct(
+        savedProduct
+      );
+
+
+      if (
         editing
-          ? "Apostila atualizada com sucesso."
-          : "Apostila criada como rascunho."
-      );
+      ) {
+        setNotice(
+          "Apostila atualizada com sucesso."
+        );
 
 
-      setEditorOpen(
-        false
-      );
+        setEditorOpen(
+          false
+        );
 
 
-      setEditingProduct(
-        null
-      );
+        setEditingProduct(
+          null
+        );
 
 
-      setForm(
-        emptyForm()
-      );
+        setForm(
+          emptyForm()
+        );
+      } else {
+        /**
+         * Mantemos o editor aberto.
+         *
+         * Agora que o rascunho possui ID, o administrador
+         * pode enviar capa e PDF imediatamente.
+         */
+        setForm(
+          productToForm(
+            savedProduct
+          )
+        );
 
 
-      await fetchProducts();
+        setSlugEdited(
+          true
+        );
+
+
+        setNotice(
+          "Rascunho criado. Agora você pode enviar a capa e o PDF."
+        );
+      }
     } catch (
       saveError
     ) {
@@ -1441,6 +1538,227 @@ export function AdminApostilas() {
     }
   }
 
+  async function uploadAsset(
+    kind: AdminAssetKind,
+    file: File
+  ) {
+    if (
+      !editingProduct
+    ) {
+      setError(
+        "Salve o rascunho antes de enviar arquivos."
+      );
+
+
+      return;
+    }
+
+
+    const maximumSize =
+      kind ===
+      "cover"
+        ? 8 *
+          1024 *
+          1024
+        : 120 *
+          1024 *
+          1024;
+
+
+    if (
+      file.size >
+      maximumSize
+    ) {
+      setError(
+        kind ===
+        "cover"
+          ? "A capa excede o limite de 8 MB."
+          : "O PDF excede o limite de 120 MB."
+      );
+
+
+      return;
+    }
+
+
+    clearMessages();
+
+
+    setAssetOperation(
+      kind
+    );
+
+
+    try {
+      const formData =
+        new FormData();
+
+
+      formData.set(
+        "kind",
+        kind
+      );
+
+
+      formData.set(
+        "file",
+        file
+      );
+
+
+      const response =
+        await fetch(
+          `/api/admin/products/${editingProduct.id}/assets`,
+          {
+            method:
+              "POST",
+
+            credentials:
+              "include",
+
+            body:
+              formData,
+          }
+        );
+
+
+      const data =
+        await response
+          .json()
+          .catch(
+            () => ({})
+          );
+
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          data.error ||
+          "Não foi possível enviar o arquivo."
+        );
+      }
+
+
+      syncProduct(
+        data.product as
+          AdminProduct
+      );
+
+
+      setNotice(
+        kind ===
+        "cover"
+          ? "Capa enviada com sucesso."
+          : "PDF enviado com sucesso."
+      );
+    } catch (
+      uploadError
+    ) {
+      setError(
+        uploadError instanceof
+          Error
+          ? uploadError.message
+          : "Erro ao enviar arquivo."
+      );
+    } finally {
+      setAssetOperation(
+        null
+      );
+    }
+  }
+
+
+  async function removeAsset(
+    kind: AdminAssetKind
+  ) {
+    if (
+      !editingProduct
+    ) {
+      return;
+    }
+
+
+    const label =
+      kind ===
+      "cover"
+        ? "capa"
+        : "PDF";
+
+
+    if (
+      !window.confirm(
+        `Remover ${label} desta apostila? A apostila será despublicada automaticamente.`
+      )
+    ) {
+      return;
+    }
+
+
+    clearMessages();
+
+
+    setAssetOperation(
+      kind
+    );
+
+
+    try {
+      const response =
+        await fetch(
+          `/api/admin/products/${editingProduct.id}/assets?kind=${kind}`,
+          {
+            method:
+              "DELETE",
+
+            credentials:
+              "include",
+          }
+        );
+
+
+      const data =
+        await response
+          .json()
+          .catch(
+            () => ({})
+          );
+
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          data.error ||
+          "Não foi possível remover o arquivo."
+        );
+      }
+
+
+      syncProduct(
+        data.product as
+          AdminProduct
+      );
+
+
+      setNotice(
+        `${label === "PDF" ? "PDF" : "Capa"} removido(a). A apostila permanece em rascunho até possuir novamente capa e PDF.`
+      );
+    } catch (
+      removeError
+    ) {
+      setError(
+        removeError instanceof
+          Error
+          ? removeError.message
+          : "Erro ao remover arquivo."
+      );
+    } finally {
+      setAssetOperation(
+        null
+      );
+    }
+  }
 
   async function togglePublication(
     product: AdminProduct
@@ -1461,7 +1779,7 @@ export function AdminApostilas() {
       )
     ) {
       setError(
-        "Esta apostila ainda não possui capa e PDF. O upload seguro será habilitado na Fase 3C antes da publicação."
+        "Esta apostila ainda não possui capa e PDF. Envie os dois arquivos antes de publicar."
       );
 
 
@@ -2072,820 +2390,258 @@ export function AdminApostilas() {
                 <section className="admin-form-section">
                   <header>
                     <h3>
-                      1. Identificação
-                    </h3>
-
-                    <p>
-                      Informações principais utilizadas
-                      no catálogo e na página da
-                      apostila.
-                    </p>
-                  </header>
-
-                  <div className="admin-form-grid">
-                    <label className="admin-field span-2">
-                      <span>
-                        Título *
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          form.title
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateTitle(
-                              event.target.value
-                            )
-                        }
-                        maxLength={
-                          180
-                        }
-                        required
-                      />
-                    </label>
-
-                    <label className="admin-field">
-                      <span>
-                        Slug *
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          form.slug
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateSlug(
-                              event.target.value
-                            )
-                        }
-                        maxLength={
-                          120
-                        }
-                        required
-                      />
-
-                      <small>
-                        URL: /apostilas/{form.slug || "slug-da-apostila"}
-                      </small>
-                    </label>
-
-                    <label className="admin-field">
-                      <span>
-                        Título curto
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          form.shortTitle
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "shortTitle",
-                              event.target.value
-                            )
-                        }
-                        maxLength={
-                          120
-                        }
-                      />
-                    </label>
-
-                    <label className="admin-field">
-                      <span>
-                        Categoria
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          form.category
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "category",
-                              event.target.value
-                            )
-                        }
-                        maxLength={
-                          100
-                        }
-                        placeholder="Ex.: Estatais"
-                      />
-                    </label>
-
-                    <label className="admin-field">
-                      <span>
-                        Banca
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          form.bank
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "bank",
-                              event.target.value
-                            )
-                        }
-                        maxLength={
-                          100
-                        }
-                        placeholder="Ex.: Cesgranrio"
-                      />
-                    </label>
-
-                    <label className="admin-field">
-                      <span>
-                        Nível
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          form.level
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "level",
-                              event.target.value
-                            )
-                        }
-                        maxLength={
-                          80
-                        }
-                        placeholder="Ex.: Superior"
-                      />
-                    </label>
-
-                    <label className="admin-field">
-                      <span>
-                        Atualização editorial
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          form.updated
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "updated",
-                              event.target.value
-                            )
-                        }
-                        maxLength={
-                          100
-                        }
-                        placeholder="Ex.: Atualizado para o edital 2026"
-                      />
-                    </label>
-                  </div>
-                </section>
-
-
-                <section className="admin-form-section">
-                  <header>
-                    <h3>
-                      2. Conteúdo e preço
-                    </h3>
-
-                    <p>
-                      Métricas exibidas na página do
-                      produto e valores comerciais.
-                    </p>
-                  </header>
-
-                  <div className="admin-form-grid admin-form-grid-3">
-                    <label className="admin-field">
-                      <span>
-                        Páginas
-                      </span>
-
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={
-                          form.pages
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "pages",
-                              event.target.value
-                            )
-                        }
-                      />
-                    </label>
-
-                    <label className="admin-field">
-                      <span>
-                        Questões
-                      </span>
-
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={
-                          form.questions
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "questions",
-                              event.target.value
-                            )
-                        }
-                      />
-                    </label>
-
-                    <label className="admin-field">
-                      <span>
-                        Preço anterior
-                      </span>
-
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={
-                          form.oldPrice
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "oldPrice",
-                              event.target.value
-                            )
-                        }
-                      />
-                    </label>
-
-                    <label className="admin-field">
-                      <span>
-                        Preço *
-                      </span>
-
-                      <input
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={
-                          form.price
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "price",
-                              event.target.value
-                            )
-                        }
-                        required
-                      />
-                    </label>
-
-                    <label className="admin-field">
-                      <span>
-                        Preço PIX
-                      </span>
-
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={
-                          form.pixPrice
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "pixPrice",
-                              event.target.value
-                            )
-                        }
-                      />
-                    </label>
-
-                    <label className="admin-field">
-                      <span>
-                        Classe visual legada
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          form.coverClass
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "coverClass",
-                              event.target.value
-                            )
-                        }
-                        maxLength={
-                          80
-                        }
-                      />
-                    </label>
-                  </div>
-                </section>
-
-
-                <section className="admin-form-section">
-                  <header>
-                    <h3>
-                      3. Apresentação
-                    </h3>
-
-                    <p>
-                      Textos comerciais apresentados
-                      ao candidato.
-                    </p>
-                  </header>
-
-                  <div className="admin-form-grid">
-                    <label className="admin-field span-2">
-                      <span>
-                        Chamada principal
-                      </span>
-
-                      <textarea
-                        rows={
-                          3
-                        }
-                        value={
-                          form.kicker
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "kicker",
-                              event.target.value
-                            )
-                        }
-                        maxLength={
-                          600
-                        }
-                      />
-                    </label>
-
-                    <label className="admin-field span-2">
-                      <span>
-                        Descrição
-                      </span>
-
-                      <textarea
-                        rows={
-                          6
-                        }
-                        value={
-                          form.description
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "description",
-                              event.target.value
-                            )
-                        }
-                        maxLength={
-                          5000
-                        }
-                      />
-                    </label>
-
-                    <label className="admin-field span-2">
-                      <span>
-                        Destaques
-                      </span>
-
-                      <textarea
-                        rows={
-                          6
-                        }
-                        value={
-                          form.highlights
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "highlights",
-                              event.target.value
-                            )
-                        }
-                        placeholder={
-                          "Um destaque por linha\nConteúdo atualizado\nQuestões comentadas"
-                        }
-                      />
-
-                      <small>
-                        Um item por linha.
-                      </small>
-                    </label>
-
-                    <label className="admin-field span-2">
-                      <span>
-                        Link Mercado Pago
-                      </span>
-
-                      <input
-                        type="url"
-                        value={
-                          form.mpLink
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "mpLink",
-                              event.target.value
-                            )
-                        }
-                        placeholder="https://..."
-                      />
-
-                      <small>
-                        Quando informado, deve utilizar HTTPS.
-                      </small>
-                    </label>
-                  </div>
-                </section>
-
-
-                <section className="admin-form-section">
-                  <header className="admin-form-section-header-actions">
-                    <div>
-                      <h3>
-                        4. Conteúdo programático
-                      </h3>
-
-                      <p>
-                        Cadastre disciplinas, tópicos e
-                        volume de conteúdo.
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="button button-ghost"
-                      onClick={
-                        addSyllabusItem
-                      }
-                    >
-                      + Adicionar disciplina
-                    </button>
-                  </header>
-
-
-                  {form.syllabus.length ===
-                  0 ? (
-                    <div className="syllabus-empty">
-                      Nenhuma disciplina cadastrada.
-                    </div>
-                  ) : (
-                    <div className="syllabus-admin-list">
-                      {form.syllabus.map(
-                        (
-                          item,
-                          index
-                        ) => (
-                          <article
-                            className="syllabus-admin-item"
-                            key={
-                              index
-                            }
-                          >
-                            <header>
-                              <strong>
-                                Disciplina {index + 1}
-                              </strong>
-
-                              <button
-                                type="button"
-                                onClick={
-                                  () =>
-                                    removeSyllabusItem(
-                                      index
-                                    )
-                                }
-                              >
-                                Remover
-                              </button>
-                            </header>
-
-                            <div className="admin-form-grid admin-form-grid-3">
-                              <label className="admin-field span-2">
-                                <span>
-                                  Disciplina
-                                </span>
-
-                                <input
-                                  type="text"
-                                  value={
-                                    item.title
-                                  }
-                                  onChange={
-                                    (
-                                      event
-                                    ) =>
-                                      updateSyllabusItem(
-                                        index,
-                                        "title",
-                                        event.target.value
-                                      )
-                                  }
-                                />
-                              </label>
-
-                              <label className="admin-field">
-                                <span>
-                                  Páginas
-                                </span>
-
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  value={
-                                    item.pages
-                                  }
-                                  onChange={
-                                    (
-                                      event
-                                    ) =>
-                                      updateSyllabusItem(
-                                        index,
-                                        "pages",
-                                        event.target.value
-                                      )
-                                  }
-                                />
-                              </label>
-
-                              <label className="admin-field">
-                                <span>
-                                  Questões
-                                </span>
-
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  value={
-                                    item.questions
-                                  }
-                                  onChange={
-                                    (
-                                      event
-                                    ) =>
-                                      updateSyllabusItem(
-                                        index,
-                                        "questions",
-                                        event.target.value
-                                      )
-                                  }
-                                />
-                              </label>
-
-                              <label className="admin-field span-2">
-                                <span>
-                                  Tópicos
-                                </span>
-
-                                <textarea
-                                  rows={
-                                    5
-                                  }
-                                  value={
-                                    item.topics
-                                  }
-                                  onChange={
-                                    (
-                                      event
-                                    ) =>
-                                      updateSyllabusItem(
-                                        index,
-                                        "topics",
-                                        event.target.value
-                                      )
-                                  }
-                                  placeholder="Um tópico por linha"
-                                />
-                              </label>
-                            </div>
-                          </article>
-                        )
-                      )}
-                    </div>
-                  )}
-                </section>
-
-
-                <section className="admin-form-section">
-                  <header>
-                    <h3>
-                      5. Depoimento
-                    </h3>
-
-                    <p>
-                      Opcional. Caso utilizado, os
-                      quatro campos devem ser
-                      preenchidos.
-                    </p>
-                  </header>
-
-                  <div className="admin-form-grid">
-                    <label className="admin-field">
-                      <span>
-                        Nome
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          form.testimonialName
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "testimonialName",
-                              event.target.value
-                            )
-                        }
-                      />
-                    </label>
-
-                    <label className="admin-field">
-                      <span>
-                        Identificação
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          form.testimonialRole
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "testimonialRole",
-                              event.target.value
-                            )
-                        }
-                        placeholder="Ex.: Aprovado"
-                      />
-                    </label>
-
-                    <label className="admin-field span-2">
-                      <span>
-                        Depoimento
-                      </span>
-
-                      <textarea
-                        rows={
-                          4
-                        }
-                        value={
-                          form.testimonialQuote
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "testimonialQuote",
-                              event.target.value
-                            )
-                        }
-                      />
-                    </label>
-
-                    <label className="admin-field">
-                      <span>
-                        Resultado / destaque
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          form.testimonialScore
-                        }
-                        onChange={
-                          (
-                            event
-                          ) =>
-                            updateField(
-                              "testimonialScore",
-                              event.target.value
-                            )
-                        }
-                        placeholder="Ex.: 92% de acertos"
-                      />
-                    </label>
-                  </div>
-                </section>
-
-
-                <section className="admin-form-section">
-                  <header>
-                    <h3>
                       6. Arquivos
                     </h3>
 
                     <p>
-                      Capa e PDF são protegidos contra
-                      alteração por JSON e serão
-                      gerenciados pela API de upload da
-                      Fase 3C.
+                      Capa e PDF são enviados por uma
+                      API administrativa protegida. O
+                      PDF original permanece fora da
+                      área pública do site.
                     </p>
                   </header>
 
-                  <div className="admin-readonly-assets">
-                    <article>
-                      <span>
-                        Capa
-                      </span>
 
+                  {!editingProduct ? (
+                    <div className="admin-assets-save-first">
                       <strong>
-                        {editingProduct?.cover
-                          ? "✓ Arquivo cadastrado"
-                          : "○ Pendente"}
+                        Salve o rascunho primeiro.
                       </strong>
 
-                      <small>
-                        {editingProduct?.cover ||
-                          "Upload ainda não disponível nesta fase."}
-                      </small>
-                    </article>
-
-                    <article>
                       <span>
-                        PDF original
+                        Após a criação, o editor permanecerá
+                        aberto e os controles de upload serão
+                        habilitados.
                       </span>
+                    </div>
+                  ) : (
+                    <div className="admin-assets-grid">
+                      <article className="admin-asset-card">
+                        <div className="admin-asset-card-header">
+                          <div>
+                            <span className="admin-asset-label">
+                              CAPA
+                            </span>
 
-                      <strong>
-                        {editingProduct?.pdfPath
-                          ? "✓ Arquivo cadastrado"
-                          : "○ Pendente"}
-                      </strong>
+                            <strong>
+                              {editingProduct.cover
+                                ? "✓ Capa cadastrada"
+                                : "○ Capa pendente"}
+                            </strong>
+                          </div>
 
-                      <small>
-                        {editingProduct?.pdfPath ||
-                          "Upload ainda não disponível nesta fase."}
-                      </small>
-                    </article>
-                  </div>
+                          <span
+                            className={
+                              editingProduct.cover
+                                ? "admin-asset-status ready"
+                                : "admin-asset-status pending"
+                            }
+                          >
+                            {editingProduct.cover
+                              ? "Pronta"
+                              : "Pendente"}
+                          </span>
+                        </div>
+
+
+                        {editingProduct.cover && (
+                          <div className="admin-cover-preview">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={
+                                editingProduct.cover
+                              }
+                              alt={`Capa de ${editingProduct.title}`}
+                            />
+                          </div>
+                        )}
+
+
+                        <p>
+                          PNG, JPG/JPEG ou WebP.
+                          Máximo de 8 MB.
+                        </p>
+
+
+                        <label className="admin-upload-control">
+                          <span className="button button-ghost">
+                            {assetOperation ===
+                            "cover"
+                              ? "Enviando capa..."
+                              : editingProduct.cover
+                                ? "Substituir capa"
+                                : "Enviar capa"}
+                          </span>
+
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                            disabled={
+                              assetOperation !==
+                              null
+                            }
+                            onChange={
+                              (
+                                event
+                              ) => {
+                                const file =
+                                  event
+                                    .currentTarget
+                                    .files?.[0];
+
+
+                                event.currentTarget.value =
+                                  "";
+
+
+                                if (
+                                  file
+                                ) {
+                                  void uploadAsset(
+                                    "cover",
+                                    file
+                                  );
+                                }
+                              }
+                            }
+                          />
+                        </label>
+
+
+                        {editingProduct.cover && (
+                          <button
+                            type="button"
+                            className="admin-asset-remove"
+                            disabled={
+                              assetOperation !==
+                              null
+                            }
+                            onClick={
+                              () =>
+                                void removeAsset(
+                                  "cover"
+                                )
+                            }
+                          >
+                            Remover capa
+                          </button>
+                        )}
+                      </article>
+
+
+                      <article className="admin-asset-card">
+                        <div className="admin-asset-card-header">
+                          <div>
+                            <span className="admin-asset-label">
+                              PDF ORIGINAL
+                            </span>
+
+                            <strong>
+                              {editingProduct.pdfPath
+                                ? "✓ PDF cadastrado"
+                                : "○ PDF pendente"}
+                            </strong>
+                          </div>
+
+                          <span
+                            className={
+                              editingProduct.pdfPath
+                                ? "admin-asset-status ready"
+                                : "admin-asset-status pending"
+                            }
+                          >
+                            {editingProduct.pdfPath
+                              ? "Protegido"
+                              : "Pendente"}
+                          </span>
+                        </div>
+
+
+                        <div className="admin-private-file-note">
+                          <strong>
+                            🔒 Armazenamento privado
+                          </strong>
+
+                          <span>
+                            O arquivo original não possui URL
+                            pública direta.
+                          </span>
+                        </div>
+
+
+                        <p>
+                          Apenas PDF. Máximo de 120 MB.
+                          O arquivo será personalizado somente
+                          no momento do download do comprador.
+                        </p>
+
+
+                        <label className="admin-upload-control">
+                          <span className="button button-ghost">
+                            {assetOperation ===
+                            "pdf"
+                              ? "Enviando PDF..."
+                              : editingProduct.pdfPath
+                                ? "Substituir PDF"
+                                : "Enviar PDF"}
+                          </span>
+
+                          <input
+                            type="file"
+                            accept="application/pdf,.pdf"
+                            disabled={
+                              assetOperation !==
+                              null
+                            }
+                            onChange={
+                              (
+                                event
+                              ) => {
+                                const file =
+                                  event
+                                    .currentTarget
+                                    .files?.[0];
+
+
+                                event.currentTarget.value =
+                                  "";
+
+
+                                if (
+                                  file
+                                ) {
+                                  void uploadAsset(
+                                    "pdf",
+                                    file
+                                  );
+                                }
+                              }
+                            }
+                          />
+                        </label>
+
+
+                        {editingProduct.pdfPath && (
+                          <button
+                            type="button"
+                            className="admin-asset-remove"
+                            disabled={
+                              assetOperation !==
+                              null
+                            }
+                            onClick={
+                              () =>
+                                void removeAsset(
+                                  "pdf"
+                                )
+                            }
+                          >
+                            Remover PDF
+                          </button>
+                        )}
+                      </article>
+                    </div>
+                  )}
                 </section>
 
 
@@ -2980,7 +2736,9 @@ export function AdminApostilas() {
                       closeEditor
                     }
                     disabled={
-                      saving
+                      saving ||
+                      assetOperation !==
+                        null
                     }
                   >
                     Cancelar
@@ -2990,7 +2748,9 @@ export function AdminApostilas() {
                     type="submit"
                     className="button button-primary"
                     disabled={
-                      saving
+                      saving ||
+                      assetOperation !==
+                        null
                     }
                   >
                     {saving

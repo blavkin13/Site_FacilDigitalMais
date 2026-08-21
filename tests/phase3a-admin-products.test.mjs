@@ -668,7 +668,7 @@ describe(
 
 
     test(
-      "PATCH deve permitir somente campos validados",
+      "PATCH deve permitir campos validados e bloquear publicação incompleta",
       async () => {
         const listResponse =
           await productsRoute.GET(
@@ -698,7 +698,11 @@ describe(
         );
 
 
-        const updateResponse =
+        /**
+         * Desde a Fase 3C a publicação depende
+         * obrigatoriamente de capa + PDF.
+         */
+        const publishResponse =
           await productsRoute.PATCH(
             createRequest({
               method:
@@ -713,6 +717,43 @@ describe(
 
                 active:
                   true,
+              },
+            })
+          );
+
+
+        assert.equal(
+          publishResponse.status,
+          409
+        );
+
+
+        const publishError =
+          await publishResponse.json();
+
+
+        assert.match(
+          publishError.error,
+          /capa e PDF/i
+        );
+
+
+        /**
+         * Campos editoriais continuam editáveis mesmo
+         * enquanto a apostila está em rascunho.
+         */
+        const updateResponse =
+          await productsRoute.PATCH(
+            createRequest({
+              method:
+                "PATCH",
+
+              token:
+                adminToken,
+
+              body: {
+                id:
+                  product.id,
 
                 title:
                   "Apostila Integração 3A Atualizada",
@@ -733,7 +774,7 @@ describe(
 
         assert.equal(
           updated.product.active,
-          true
+          false
         );
 
 

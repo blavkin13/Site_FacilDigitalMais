@@ -34,19 +34,14 @@ describe(
     test(
       "componente AdminApostilas deve existir",
       () => {
-        const path =
-          join(
-            process.cwd(),
-            "components",
-            "admin-apostilas.tsx"
-          );
-
-
         assert.ok(
           existsSync(
-            path
-          ),
-          "components/admin-apostilas.tsx deve existir"
+            join(
+              process.cwd(),
+              "components",
+              "admin-apostilas.tsx"
+            )
+          )
         );
       }
     );
@@ -64,36 +59,32 @@ describe(
 
         assert.match(
           content,
-          /AdminApostilas/,
-          "Dashboard deve utilizar AdminApostilas"
+          /AdminApostilas/
         );
 
 
         assert.match(
           content,
-          /"apostilas"/,
-          "A aba administrativa deve se chamar apostilas"
+          /"apostilas"/
         );
 
 
         assert.match(
           content,
-          /📚 Apostilas/,
-          "Sidebar deve exibir Apostilas"
+          /📚 Apostilas/
         );
 
 
         assert.doesNotMatch(
           content,
-          /function\s+AdminProducts\s*\(/,
-          "Gerenciamento legado inline deve ser removido"
+          /function\s+AdminProducts\s*\(/
         );
       }
     );
 
 
     test(
-      "interface deve listar apostilas pela API segura",
+      "interface deve consumir API administrativa com sessão",
       () => {
         const content =
           readProjectFile(
@@ -104,22 +95,19 @@ describe(
 
         assert.match(
           content,
-          /\/api\/admin\/products/,
-          "Interface deve consumir API administrativa"
+          /\/api\/admin\/products/
         );
 
 
         assert.match(
           content,
-          /credentials:\s*["']include["']/,
-          "Requisições devem enviar sessão"
+          /credentials:\s*["']include["']/
         );
 
 
         assert.match(
           content,
-          /fetchProducts/,
-          "Interface deve possuir carregamento centralizado"
+          /fetchProducts/
         );
       }
     );
@@ -137,29 +125,26 @@ describe(
 
         assert.match(
           content,
-          /\+ Nova apostila/,
-          "Deve existir ação para criar apostila"
+          /\+ Nova apostila/
         );
 
 
         assert.match(
           content,
-          /method:\s*editing[\s\S]*["']PATCH["'][\s\S]*["']POST["']/,
-          "Editor deve diferenciar criação e edição"
+          /Criar rascunho/
         );
 
 
         assert.match(
           content,
-          /Criar rascunho/,
-          "Nova apostila deve ser apresentada como rascunho"
+          /method:\s*editing[\s\S]*["']PATCH["'][\s\S]*["']POST["']/
         );
       }
     );
 
 
     test(
-      "interface deve permitir editar todos os dados editoriais essenciais",
+      "editor deve preservar dados editoriais essenciais",
       () => {
         const content =
           readProjectFile(
@@ -168,7 +153,7 @@ describe(
           );
 
 
-        const requiredFields = [
+        const fields = [
           "title",
           "slug",
           "shortTitle",
@@ -189,13 +174,13 @@ describe(
 
 
         for (
-          const field of requiredFields
+          const field of fields
         ) {
           assert.ok(
             content.includes(
               field
             ),
-            `Editor deve conter ${field}`
+            `Campo ${field} deve permanecer no editor`
           );
         }
       }
@@ -203,7 +188,7 @@ describe(
 
 
     test(
-      "conteúdo programático deve possuir editor estruturado",
+      "conteúdo programático deve continuar estruturado",
       () => {
         const content =
           readProjectFile(
@@ -214,36 +199,32 @@ describe(
 
         assert.match(
           content,
-          /addSyllabusItem/,
-          "Deve ser possível adicionar disciplina"
+          /addSyllabusItem/
         );
 
 
         assert.match(
           content,
-          /updateSyllabusItem/,
-          "Deve ser possível editar disciplina"
+          /updateSyllabusItem/
         );
 
 
         assert.match(
           content,
-          /removeSyllabusItem/,
-          "Deve ser possível remover disciplina"
+          /removeSyllabusItem/
         );
 
 
         assert.match(
           content,
-          /topics/,
-          "Editor deve aceitar tópicos"
+          /topics/
         );
       }
     );
 
 
     test(
-      "interface deve possuir busca e filtros",
+      "busca e filtros devem permanecer disponíveis",
       () => {
         const content =
           readProjectFile(
@@ -254,36 +235,32 @@ describe(
 
         assert.match(
           content,
-          /type="search"/,
-          "Deve existir busca"
+          /type="search"/
         );
 
 
         assert.match(
           content,
-          /statusFilter/,
-          "Deve existir filtro por status"
+          /statusFilter/
         );
 
 
         assert.match(
           content,
-          /categoryFilter/,
-          "Deve existir filtro por categoria"
+          /categoryFilter/
         );
 
 
         assert.match(
           content,
-          /filteredProducts/,
-          "Listagem deve utilizar produtos filtrados"
+          /filteredProducts/
         );
       }
     );
 
 
     test(
-      "publicação deve exigir capa e PDF na interface",
+      "interface deve continuar exigindo capa e PDF para publicação",
       () => {
         const content =
           readProjectFile(
@@ -294,62 +271,32 @@ describe(
 
         assert.match(
           content,
-          /hasRequiredAssets/,
-          "Interface deve verificar arquivos obrigatórios"
+          /hasRequiredAssets/
         );
 
 
         assert.match(
           content,
-          /product\.cover\s*&&\s*product\.pdfPath/,
-          "Capa e PDF devem ser necessários"
+          /product\.cover\s*&&\s*product\.pdfPath/
         );
 
 
         assert.match(
           content,
-          /Publicar/,
-          "Deve existir ação de publicação"
+          /Publicar/
         );
 
 
         assert.match(
           content,
-          /Despublicar/,
-          "Deve existir ação de despublicação"
+          /Despublicar/
         );
       }
     );
 
 
     test(
-      "Fase 3B não deve implementar upload de arquivo",
-      () => {
-        const content =
-          readProjectFile(
-            "components",
-            "admin-apostilas.tsx"
-          );
-
-
-        assert.doesNotMatch(
-          content,
-          /type\s*=\s*["']file["']/,
-          "Upload fica reservado para a Fase 3C"
-        );
-
-
-        assert.match(
-          content,
-          /Fase 3C/,
-          "Interface deve comunicar que arquivos serão tratados posteriormente"
-        );
-      }
-    );
-
-
-    test(
-      "interface deve exibir pré-visualização dos dados",
+      "pré-visualização deve permanecer disponível",
       () => {
         const content =
           readProjectFile(
@@ -360,22 +307,20 @@ describe(
 
         assert.match(
           content,
-          /Pré-visualização dos dados/,
-          "Editor deve possuir preview"
+          /Pré-visualização dos dados/
         );
 
 
         assert.match(
           content,
-          /admin-product-preview/,
-          "Preview deve possuir componente visual próprio"
+          /admin-product-preview/
         );
       }
     );
 
 
     test(
-      "CSS da interface administrativa deve existir",
+      "CSS fundamental da interface deve permanecer",
       () => {
         const content =
           readProjectFile(
@@ -384,7 +329,7 @@ describe(
           );
 
 
-        const requiredClasses = [
+        const classes = [
           ".admin-apostilas",
           ".apostilas-toolbar",
           ".apostilas-summary",
@@ -392,19 +337,18 @@ describe(
           ".admin-modal-backdrop",
           ".admin-form-section",
           ".syllabus-admin-list",
-          ".admin-readonly-assets",
           ".admin-product-preview",
         ];
 
 
         for (
-          const className of requiredClasses
+          const className of classes
         ) {
           assert.ok(
             content.includes(
               className
             ),
-            `CSS deve conter ${className}`
+            `${className} deve existir`
           );
         }
       }
@@ -412,7 +356,7 @@ describe(
 
 
     test(
-      "package deve incluir teste 3B no gate global",
+      "package deve manter teste 3B no gate global",
       () => {
         const packageJson =
           JSON.parse(
@@ -425,8 +369,7 @@ describe(
         assert.ok(
           packageJson.scripts[
             "test:phase3b-admin-ui"
-          ],
-          "Script da Fase 3B deve existir"
+          ]
         );
 
 
@@ -434,8 +377,7 @@ describe(
           packageJson.scripts[
             "test:all"
           ],
-          /test:phase3b-admin-ui/,
-          "test:all deve incluir Fase 3B administrativa"
+          /test:phase3b-admin-ui/
         );
       }
     );

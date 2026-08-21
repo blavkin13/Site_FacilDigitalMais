@@ -324,6 +324,74 @@ export async function PATCH(
       getDb();
 
 
+    /**
+     * A publicação possui uma regra de negócio
+     * server-side própria.
+     *
+     * A interface pode bloquear o botão, mas isso
+     * nunca será considerado uma barreira de segurança.
+     */
+    const existingProduct =
+      await db
+        .select({
+          id:
+            products.id,
+
+          cover:
+            products.cover,
+
+          pdfPath:
+            products.pdfPath,
+        })
+        .from(
+          products
+        )
+        .where(
+          eq(
+            products.id,
+            id
+          )
+        )
+        .get();
+
+
+    if (
+      !existingProduct
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Apostila não encontrada.",
+        },
+        {
+          status:
+            404,
+        }
+      );
+    }
+
+
+    if (
+      updates.active ===
+        true &&
+      (
+        !existingProduct.cover ||
+        !existingProduct.pdfPath
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Não é possível publicar uma apostila sem capa e PDF.",
+        },
+        {
+          status:
+            409,
+        }
+      );
+    }
+
+
     const result =
       await db
         .update(
@@ -343,22 +411,6 @@ export async function PATCH(
           )
         )
         .returning();
-
-
-    if (
-      !result[0]
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Apostila não encontrada.",
-        },
-        {
-          status:
-            404,
-        }
-      );
-    }
 
 
     return NextResponse.json(
