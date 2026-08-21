@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateUser } from "../../../../lib/auth.js";
-import { initDatabase } from "../../../../db/init.js";
+import { authenticateUser } from "../../../../lib/auth";
+import { initDatabase } from "../../../../db/init";
 
 export async function POST(request: NextRequest) {
   try {

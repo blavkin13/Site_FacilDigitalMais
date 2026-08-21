@@ -27,8 +27,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# environment files
+# Nunca versionar arquivos com segredos reais.
 .env*
+# O arquivo de exemplo DEVE ser versionado.
+!.env.example
 
 # vercel
 .vercel
@@ -36,8 +39,6 @@ yarn-error.log*
 # typescript
 next-env.d.ts
 /dist/
-/.wrangler/
-/.sites-runtime/
 /outputs/
 /work/
 
@@ -50,7 +51,8 @@ data/*.db-shm
 # PDFs protegidos temporários
 data/protected/
 
-# Arquivos de ambiente
-.env
-.env.local
-.env.production
+# Uploads locais/privados
+data/uploads/
+# Runtime e caches locais
+/.sites-runtime/
+/.wrangler/

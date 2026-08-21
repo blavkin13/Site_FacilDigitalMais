@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and, gte, lte, sql, count } from "drizzle-orm";
-import { getDb } from "../../../../db/index.js";
-import { users, orders, orderItems, products } from "../../../../db/schema.js";
-import { validateSession } from "../../../../lib/auth.js";
-import { initDatabase } from "../../../../db/init.js";
+import { getDb } from "../../../../db/index";
+import { users, orders, orderItems, products } from "../../../../db/schema";
+import { validateSession } from "../../../../lib/auth";
+import { initDatabase } from "../../../../db/init";
 
 export async function GET(request: NextRequest) {
   try {

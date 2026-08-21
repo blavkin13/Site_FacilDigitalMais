@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from "crypto";
 import { eq } from "drizzle-orm";
-import { getDb } from "../db/index.js";
-import { users, sessions } from "../db/schema.js";
-import type { User, Session } from "../db/schema.js";
+import { getDb } from "../db/index";
+import { users, sessions } from "../db/schema";
+import type { User, Session } from "../db/schema";
 
 // Função para hash de senha usando SHA-256 com salt
 export function hashPassword(password: string): string {

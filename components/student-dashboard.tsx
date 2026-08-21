@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "./auth-provider";
-import { formatPrice } from "../lib/products";
+import { formatPrice } from "../lib/currency";
 
 interface OrderItem {
   id: number;

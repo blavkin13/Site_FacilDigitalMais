@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
-import type { Product } from "../lib/products";
+import type { Product } from "../lib/product-types";
 
 type CartItem = Pick<Product, "slug" | "title" | "price" | "cover" | "coverClass">;
 type ShopContextValue = { cart: CartItem[]; add: (product: Product) => void; remove: (slug: string) => void; open: boolean; setOpen: (open: boolean) => void };

@@ -1,216 +1,239 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { drizzle as drizzleD1 } from "drizzle-orm/d1";
 import Database from "better-sqlite3";
-import { existsSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import {
+  existsSync,
+  mkdirSync,
+} from "node:fs";
+import {
+  isAbsolute,
+  join,
+} from "node:path";
 import * as schema from "./schema";
 
-let dbInstance: any = null;
+type SqliteDatabase = InstanceType<typeof Database>;
 
-// ==========================================
-// DETECÇÃO DO AMBIENTE
-// ==========================================
+let sqliteInstance: SqliteDatabase | null = null;
+let dbInstance: ReturnType<typeof drizzle> | null = null;
 
-function detectCodespacePath(): string | null {
-  // Método 1: Variável de ambiente do Codespace
-  const codespaceName = process.env.CODESPACE_NAME;
-  const repository = process.env.GITHUB_REPOSITORY;
-  
-  if (codespaceName || repository) {
-    // Caminho padrão do Codespace
-    const possiblePaths = [
-      "/workspaces/Site_FacilDigitalMais",
-      "/workspaces/site_facildigitalmais",
-      `/workspaces/${codespaceName}`,
-    ];
-    
-    for (const path of possiblePaths) {
-      if (existsSync(path)) {
-        console.log(`🎯 Codespace detectado: ${path}`);
-        return path;
-      }
-    }
-  }
-
-  // Método 2: Verificar caminhos comuns
-  const commonPaths = [
-    "/workspaces/Site_FacilDigitalMais",
+/**
+ * Garante que a pasta local data/ exista.
+ *
+ * O caminho é propositalmente estático e limitado ao diretório
+ * data/ para que o Turbopack não interprete o acesso como uma
+ * leitura potencial de todo o projeto.
+ */
+function ensureLocalDataDirectory(): void {
+  const dataDirectory = join(
     process.cwd(),
-    dirname(process.cwd()),
-  ];
+    "data"
+  );
 
-  for (const path of commonPaths) {
-    if (path && existsSync(path) && existsSync(join(path, "package.json"))) {
-      return path;
-    }
-  }
-
-  return null;
-}
-
-function getProjectRoot(): string {
-  // Tentar detectar ambiente Codespace primeiro
-  const codespacePath = detectCodespacePath();
-  if (codespacePath) {
-    return codespacePath;
-  }
-
-  // Método ESM: import.meta.url
-  try {
-    if (typeof import.meta !== "undefined" && import.meta.url && !import.meta.url.includes("virtual:")) {
-      const currentFile = fileURLToPath(import.meta.url);
-      const currentDir = dirname(currentFile);
-      return dirname(currentDir);
-    }
-  } catch {}
-
-  // Fallback: process.cwd()
-  return process.cwd();
-}
-
-// ==========================================
-// GARANTIR DIRETÓRIO DE DADOS
-// ==========================================
-
-function ensureDataDir(root: string): string {
-  const dataDir = join(root, "data");
-  
-  // Se o diretório já existe, retornar
-  if (existsSync(dataDir)) {
-    return dataDir;
-  }
-
-  // Tentar criar
-  try {
-    mkdirSync(dataDir, { recursive: true });
-    console.log(`📁 Diretório criado: ${dataDir}`);
-    return dataDir;
-  } catch (err: any) {
-    // Se não conseguir criar, verificar se o arquivo existe mesmo assim
-    const dbPath = join(dataDir, "dev.db");
-    if (existsSync(dbPath)) {
-      console.log(`📁 Diretório inacessível, mas banco existe: ${dbPath}`);
-      return dataDir;
-    }
-    throw new Error(`Não foi possível criar ${dataDir}: ${err.message}`);
+  if (!existsSync(dataDirectory)) {
+    mkdirSync(dataDirectory, {
+      recursive: true,
+    });
   }
 }
 
-// ==========================================
-// CRIAR INSTÂNCIA DO BANCO
-// ==========================================
+/**
+ * Converte os formatos relativos aceitos de DATABASE_PATH
+ * para somente o nome do arquivo.
+ *
+ * Formatos válidos:
+ *
+ * DATABASE_PATH=dev.db
+ * DATABASE_PATH=data/dev.db
+ * DATABASE_PATH=./data/dev.db
+ *
+ * Caminhos absolutos também são aceitos, mas são tratados
+ * diretamente em getDatabasePath().
+ */
+function getRelativeDatabaseFilename(
+  configuredPath: string
+): string {
+  const normalizedPath = configuredPath
+    .trim()
+    .replace(/\\/g, "/");
 
-function createSqliteDb(root: string): any {
-  const dataDir = ensureDataDir(root);
-  const dbPath = join(dataDir, "dev.db");
-
-  // Se o arquivo não existe, inicializar
-  if (!existsSync(dbPath)) {
-    console.log(`📄 Arquivo ${dbPath} não existe. Será criado.`);
-  } else {
-    console.log(`📄 Abrindo banco existente: ${dbPath}`);
+  if (!normalizedPath) {
+    return "dev.db";
   }
 
-  const sqlite = new Database(dbPath);
+  /**
+   * Nome simples:
+   *
+   * dev.db
+   * producao.db
+   */
+  if (!normalizedPath.includes("/")) {
+    if (
+      normalizedPath === "." ||
+      normalizedPath === ".."
+    ) {
+      throw new Error(
+        "DATABASE_PATH relativo inválido."
+      );
+    }
+
+    return normalizedPath;
+  }
+
+  /**
+   * Compatibilidade com:
+   *
+   * data/dev.db
+   * ./data/dev.db
+   */
+  const dataPathMatch = normalizedPath.match(
+    /^(?:\.\/)?data\/([^/]+)$/
+  );
+
+  if (dataPathMatch) {
+    const filename = dataPathMatch[1];
+
+    if (
+      !filename ||
+      filename === "." ||
+      filename === ".."
+    ) {
+      throw new Error(
+        "DATABASE_PATH relativo inválido."
+      );
+    }
+
+    return filename;
+  }
+
+  throw new Error(
+    [
+      "DATABASE_PATH relativo deve apontar",
+      "para um arquivo dentro da pasta data/.",
+      "Use, por exemplo:",
+      "DATABASE_PATH=dev.db",
+      "ou utilize um caminho absoluto em produção.",
+    ].join(" ")
+  );
+}
+
+/**
+ * Retorna o caminho do banco SQLite.
+ *
+ * Desenvolvimento:
+ *   data/dev.db
+ *
+ * Produção:
+ *   DATABASE_PATH pode receber um caminho absoluto.
+ *
+ * Exemplos:
+ *
+ * DATABASE_PATH=dev.db
+ *
+ * ou:
+ *
+ * DATABASE_PATH=/var/www/facil-digital-plus/data/prod.db
+ */
+export function getDatabasePath(): string {
+  const configuredPath =
+    process.env.DATABASE_PATH?.trim();
+
+  /**
+   * Em produção podemos utilizar um caminho absoluto
+   * provisionado diretamente na VPS.
+   */
+  if (
+    configuredPath &&
+    isAbsolute(configuredPath)
+  ) {
+    return configuredPath;
+  }
+
+  /**
+   * Caminhos relativos ficam obrigatoriamente
+   * confinados à pasta data/.
+   */
+  ensureLocalDataDirectory();
+
+  const databaseFilename = configuredPath
+    ? getRelativeDatabaseFilename(configuredPath)
+    : "dev.db";
+
+  return join(
+    process.cwd(),
+    "data",
+    databaseFilename
+  );
+}
+
+/**
+ * Retorna a conexão SQLite nativa.
+ *
+ * A conexão é singleton dentro do processo Node.
+ */
+export function getSqliteConnection(): SqliteDatabase {
+  if (sqliteInstance) {
+    return sqliteInstance;
+  }
+
+  const databasePath = getDatabasePath();
+
+  console.log(
+    `💾 Banco SQLite: ${databasePath}`
+  );
+
+  const sqlite = new Database(databasePath);
+
+  /**
+   * WAL permite melhor concorrência entre
+   * leitura e escrita.
+   */
   sqlite.pragma("journal_mode = WAL");
-  return drizzle(sqlite, { schema });
+
+  /**
+   * Ativa integridade referencial.
+   */
+  sqlite.pragma("foreign_keys = ON");
+
+  /**
+   * Aguarda pequenas concorrências de escrita
+   * antes de retornar SQLITE_BUSY.
+   */
+  sqlite.pragma("busy_timeout = 5000");
+
+  sqliteInstance = sqlite;
+
+  return sqliteInstance;
 }
 
-function createMemoryDb(): any {
-  console.warn("⚠️  Usando banco em memória (dados não serão persistidos)");
-  const sqlite = new Database(":memory:");
-  
-  // Criar tabelas básicas em memória
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      name TEXT,
-      cpf TEXT,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'user',
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    
-    CREATE TABLE IF NOT EXISTS sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      token TEXT NOT NULL UNIQUE,
-      expires_at TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    
-    CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      slug TEXT NOT NULL UNIQUE,
-      title TEXT NOT NULL,
-      price REAL NOT NULL,
-      active INTEGER DEFAULT 1
-    );
-    
-    CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
-      total REAL NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-  
-  return drizzle(sqlite, { schema });
-}
-
-// ==========================================
-// FUNÇÃO PRINCIPAL EXPORTADA
-// ==========================================
-
+/**
+ * Retorna a instância Drizzle ORM.
+ *
+ * Também é singleton dentro do processo.
+ */
 export function getDb() {
   if (dbInstance) {
     return dbInstance;
   }
 
-  // 1. Tentar Cloudflare D1 (produção)
-  try {
-    if (
-      typeof (globalThis as any).caches !== "undefined" ||
-      typeof (globalThis as any).WebSocketPair !== "undefined"
-    ) {
-      try {
-        const { env } = require("cloudflare:workers");
-        if (env && env.DB) {
-          dbInstance = drizzleD1(env.DB, { schema });
-          console.log("🌩️  Conectado ao Cloudflare D1");
-          return dbInstance;
-        }
-      } catch {}
+  dbInstance = drizzle(
+    getSqliteConnection(),
+    {
+      schema,
     }
-  } catch {}
+  );
 
-  // 2. Tentar SQLite local
-  const projectRoot = getProjectRoot();
-  console.log(`🔍 Raiz do projeto detectada: ${projectRoot}`);
+  return dbInstance;
+}
 
-  try {
-    dbInstance = createSqliteDb(projectRoot);
-    console.log("💾 Conectado ao SQLite local");
-    return dbInstance;
-  } catch (sqliteError: any) {
-    console.warn(`⚠️  Falha ao abrir SQLite local: ${sqliteError.message}`);
-    
-    // 3. Fallback: banco em memória
-    try {
-      dbInstance = createMemoryDb();
-      console.log("🧠 Usando banco em memória (dados temporários)");
-      return dbInstance;
-    } catch (memError: any) {
-      console.error(`❌ Falha crítica no banco: ${memError.message}`);
-      throw new Error(
-        "Não foi possível inicializar o banco de dados. " +
-        "Verifique as permissões de arquivo ou execute 'npm run db:init' primeiro."
-      );
-    }
+/**
+ * Fecha explicitamente a conexão.
+ *
+ * Utilizado principalmente pelos testes e scripts CLI.
+ */
+export function closeDatabase(): void {
+  if (sqliteInstance?.open) {
+    sqliteInstance.close();
   }
+
+  sqliteInstance = null;
+  dbInstance = null;
 }
