@@ -1,7 +1,13 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
-import { existsSync, mkdirSync } from "node:fs";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+} from "node:fs";
+import {
+  isAbsolute,
+  join,
+} from "node:path";
 import * as schema from "./schema";
 
 type SqliteDatabase = InstanceType<typeof Database>;
@@ -10,46 +16,158 @@ let sqliteInstance: SqliteDatabase | null = null;
 let dbInstance: ReturnType<typeof drizzle> | null = null;
 
 /**
- * Retorna o caminho absoluto do banco SQLite.
+ * Garante que a pasta local data/ exista.
  *
- * Prioridade:
- * 1. DATABASE_PATH definido no ambiente.
- * 2. data/dev.db dentro do projeto.
+ * O caminho é propositalmente estático e limitado ao diretório
+ * data/ para que o Turbopack não interprete o acesso como uma
+ * leitura potencial de todo o projeto.
  */
-export function getDatabasePath(): string {
-  const configuredPath = process.env.DATABASE_PATH?.trim();
+function ensureLocalDataDirectory(): void {
+  const dataDirectory = join(
+    process.cwd(),
+    "data"
+  );
 
-  if (configuredPath) {
-    return isAbsolute(configuredPath)
-      ? configuredPath
-      : resolve(process.cwd(), configuredPath);
+  if (!existsSync(dataDirectory)) {
+    mkdirSync(dataDirectory, {
+      recursive: true,
+    });
   }
-
-  const dataDir = join(process.cwd(), "data");
-
-  if (!existsSync(dataDir)) {
-    mkdirSync(dataDir, { recursive: true });
-  }
-
-  return join(dataDir, "dev.db");
 }
 
 /**
- * Garante que o diretório onde o banco será armazenado exista.
+ * Converte os formatos relativos aceitos de DATABASE_PATH
+ * para somente o nome do arquivo.
+ *
+ * Formatos válidos:
+ *
+ * DATABASE_PATH=dev.db
+ * DATABASE_PATH=data/dev.db
+ * DATABASE_PATH=./data/dev.db
+ *
+ * Caminhos absolutos também são aceitos, mas são tratados
+ * diretamente em getDatabasePath().
  */
-function ensureDatabaseDirectory(databasePath: string): void {
-  const databaseDirectory = dirname(databasePath);
+function getRelativeDatabaseFilename(
+  configuredPath: string
+): string {
+  const normalizedPath = configuredPath
+    .trim()
+    .replace(/\\/g, "/");
 
-  if (!existsSync(databaseDirectory)) {
-    mkdirSync(databaseDirectory, { recursive: true });
+  if (!normalizedPath) {
+    return "dev.db";
   }
+
+  /**
+   * Nome simples:
+   *
+   * dev.db
+   * producao.db
+   */
+  if (!normalizedPath.includes("/")) {
+    if (
+      normalizedPath === "." ||
+      normalizedPath === ".."
+    ) {
+      throw new Error(
+        "DATABASE_PATH relativo inválido."
+      );
+    }
+
+    return normalizedPath;
+  }
+
+  /**
+   * Compatibilidade com:
+   *
+   * data/dev.db
+   * ./data/dev.db
+   */
+  const dataPathMatch = normalizedPath.match(
+    /^(?:\.\/)?data\/([^/]+)$/
+  );
+
+  if (dataPathMatch) {
+    const filename = dataPathMatch[1];
+
+    if (
+      !filename ||
+      filename === "." ||
+      filename === ".."
+    ) {
+      throw new Error(
+        "DATABASE_PATH relativo inválido."
+      );
+    }
+
+    return filename;
+  }
+
+  throw new Error(
+    [
+      "DATABASE_PATH relativo deve apontar",
+      "para um arquivo dentro da pasta data/.",
+      "Use, por exemplo:",
+      "DATABASE_PATH=dev.db",
+      "ou utilize um caminho absoluto em produção.",
+    ].join(" ")
+  );
+}
+
+/**
+ * Retorna o caminho do banco SQLite.
+ *
+ * Desenvolvimento:
+ *   data/dev.db
+ *
+ * Produção:
+ *   DATABASE_PATH pode receber um caminho absoluto.
+ *
+ * Exemplos:
+ *
+ * DATABASE_PATH=dev.db
+ *
+ * ou:
+ *
+ * DATABASE_PATH=/var/www/facil-digital-plus/data/prod.db
+ */
+export function getDatabasePath(): string {
+  const configuredPath =
+    process.env.DATABASE_PATH?.trim();
+
+  /**
+   * Em produção podemos utilizar um caminho absoluto
+   * provisionado diretamente na VPS.
+   */
+  if (
+    configuredPath &&
+    isAbsolute(configuredPath)
+  ) {
+    return configuredPath;
+  }
+
+  /**
+   * Caminhos relativos ficam obrigatoriamente
+   * confinados à pasta data/.
+   */
+  ensureLocalDataDirectory();
+
+  const databaseFilename = configuredPath
+    ? getRelativeDatabaseFilename(configuredPath)
+    : "dev.db";
+
+  return join(
+    process.cwd(),
+    "data",
+    databaseFilename
+  );
 }
 
 /**
  * Retorna a conexão SQLite nativa.
  *
  * A conexão é singleton dentro do processo Node.
- * Isso evita abrir uma nova conexão para cada request.
  */
 export function getSqliteConnection(): SqliteDatabase {
   if (sqliteInstance) {
@@ -58,19 +176,27 @@ export function getSqliteConnection(): SqliteDatabase {
 
   const databasePath = getDatabasePath();
 
-  ensureDatabaseDirectory(databasePath);
-
-  console.log(`💾 Banco SQLite: ${databasePath}`);
+  console.log(
+    `💾 Banco SQLite: ${databasePath}`
+  );
 
   const sqlite = new Database(databasePath);
 
-  // WAL melhora a concorrência entre leituras e escritas.
+  /**
+   * WAL permite melhor concorrência entre
+   * leitura e escrita.
+   */
   sqlite.pragma("journal_mode = WAL");
 
-  // Garante que as foreign keys definidas no schema sejam respeitadas.
+  /**
+   * Ativa integridade referencial.
+   */
   sqlite.pragma("foreign_keys = ON");
 
-  // Evita erros SQLITE_BUSY em pequenas concorrências de escrita.
+  /**
+   * Aguarda pequenas concorrências de escrita
+   * antes de retornar SQLITE_BUSY.
+   */
   sqlite.pragma("busy_timeout = 5000");
 
   sqliteInstance = sqlite;
@@ -79,28 +205,29 @@ export function getSqliteConnection(): SqliteDatabase {
 }
 
 /**
- * Retorna a instância Drizzle ORM associada à conexão SQLite.
+ * Retorna a instância Drizzle ORM.
  *
- * Também é singleton dentro do processo Node.
+ * Também é singleton dentro do processo.
  */
 export function getDb() {
   if (dbInstance) {
     return dbInstance;
   }
 
-  dbInstance = drizzle(getSqliteConnection(), { schema });
+  dbInstance = drizzle(
+    getSqliteConnection(),
+    {
+      schema,
+    }
+  );
 
   return dbInstance;
 }
 
 /**
- * Fecha a conexão SQLite.
+ * Fecha explicitamente a conexão.
  *
- * Normalmente o servidor Next.js mantém a conexão aberta durante
- * toda a vida do processo.
- *
- * Esta função é especialmente útil para testes e encerramentos
- * controlados de scripts CLI.
+ * Utilizado principalmente pelos testes e scripts CLI.
  */
 export function closeDatabase(): void {
   if (sqliteInstance?.open) {

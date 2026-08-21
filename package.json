@@ -3,30 +3,36 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24.19.0 <25"
   },
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 5173",
     "build": "next build",
     "start": "next start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test": "npm run build && node --test --test-isolation=none tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "db:init": "npx tsx db/init.ts",
-    "db:migrate": "npx tsx db/init.ts",
-    "db:seed": "npx tsx db/seed.ts",
-    "db:seed-orders": "npx tsx db/seed-orders.ts",
-    "db:seed-simulations": "npx tsx db/seed-simulations.ts",
-    "db:load-products": "npx tsx -e 'import { loadProductsToDb } from \"./lib/json-loader-runtime.ts\"; import { initDatabase } from \"./db/init.ts\"; await initDatabase(); await loadProductsToDb();'",
-    "test:phase0": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase0.test.mjs",
-    "test:phase1": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/auth.test.mjs",
-    "test:phase2": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase2.test.mjs",
-    "test:phase3": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase3.test.mjs",
-    "test:phase3b": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase3b.test.mjs",
-    "test:phase4": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase4.test.mjs",
-    "test:phase5": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase5.test.mjs",
-    "test:phase6": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase6.test.mjs",
+    "db:init": "tsx db/init.ts",
+    "db:migrate": "tsx db/init.ts",
+    "db:seed": "tsx db/seed.ts",
+    "db:seed-orders": "tsx db/seed-orders.ts",
+    "db:seed-simulations": "tsx db/seed-simulations.ts",
+    "db:load-products": "tsx -e 'import { loadProductsToDb } from \"./lib/json-loader-runtime.ts\"; import { initDatabase } from \"./db/init.ts\"; await initDatabase(); await loadProductsToDb();'",
+
+    "test:phase0:build": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase0-build.test.mjs",
+    "test:phase0:db": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase0.test.mjs",
+    "test:phase0": "npm run test:phase0:build && npm run test:phase0:db",
+
+    "test:phase1": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/auth.test.mjs",
+    "test:phase2": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2.test.mjs",
+    "test:phase3": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3.test.mjs",
+    "test:phase3b": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3b.test.mjs",
+    "test:phase4": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4.test.mjs",
+    "test:phase5": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase5.test.mjs",
+    "test:phase6": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase6.test.mjs",
+
     "test:all": "npm run test:phase0 && npm run test:phase1 && npm run test:phase2 && npm run test:phase3 && npm run test:phase3b && npm run test:phase4 && npm run test:phase5 && npm run test:phase6",
+
     "validate": "node scripts/validate-all.mjs"
   },
   "dependencies": {
@@ -49,6 +55,7 @@
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "4.2.1",
+    "tsx": "4.23.12",
     "typescript": "5.9.3"
   },
   "type": "module",
