@@ -12,7 +12,7 @@
     "price": 79.9,
     "pixPrice": 75.91,
     "updated": "Agosto de 2026",
-    "cover": "https://exemplo.com/covers/cover-saude.png",
+    "cover": "/covers/cover-saude.png",
     "coverClass": "health",
     "kicker": "Preparação completa para quem cuida de pessoas e quer cuidar do próprio futuro.",
     "description": "Do SUS à saúde ocupacional: teoria aprofundada, revisões estratégicas e questões no estilo Cesgranrio para uma preparação segura.",
@@ -26,23 +26,42 @@
         "title": "Língua Portuguesa",
         "pages": 94,
         "questions": 160,
-        "topics": ["Interpretação de textos", "Coesão e coerência", "Gramática aplicada"]
+        "topics": [
+          "Interpretação de textos",
+          "Coesão e coerência",
+          "Gramática aplicada"
+        ]
       },
       {
         "title": "Saúde Ocupacional",
         "pages": 214,
         "questions": 280,
-        "topics": ["PCMSO e NR-07", "Vigilância em saúde", "Primeiros socorros"]
+        "topics": [
+          "PCMSO e NR-07",
+          "Vigilância em saúde",
+          "Primeiros socorros"
+        ]
+      },
+      {
+        "title": "Conhecimentos de Enfermagem",
+        "pages": 302,
+        "questions": 320,
+        "topics": [
+          "Procedimentos técnicos",
+          "Biossegurança",
+          "Urgência e emergência"
+        ]
       }
     ],
     "testimonial": {
       "name": "Rafaela Lima",
       "role": "Técnica de enfermagem aprovada",
-      "quote": "As revisões e as questões fizeram toda diferença na reta final.",
+      "quote": "As revisões e as questões fizeram toda diferença na reta final. Eu sabia exatamente onde precisava melhorar.",
       "score": "91% no simulado final"
     },
-    "mpLink": "https://mpago.la/exemplo1",
-    "pdfPath": "/pdfs/transpetro-saude.pdf"
+    "mpLink": null,
+    "pdfPath": "/pdfs/transpetro-saude.pdf",
+    "active": true
   },
   {
     "slug": "transpetro-contabilidade",
@@ -57,16 +76,119 @@
     "price": 89.9,
     "pixPrice": 85.41,
     "updated": "Agosto de 2026",
-    "cover": "https://exemplo.com/covers/cover-contabilidade.png",
+    "cover": "/covers/cover-contabilidade.png",
     "coverClass": "accounting",
     "kicker": "Números organizados. Estratégia calibrada. Aprovação no horizonte.",
-    "description": "Uma preparação de alto nível em contabilidade geral, custos, tributária e auditoria.",
+    "description": "Uma preparação de alto nível em contabilidade geral, custos, tributária e auditoria, com foco no padrão de cobrança da Cesgranrio.",
     "highlights": [
       "Teoria + mapas de revisão",
       "960 questões selecionadas",
       "Caderno de normas atualizado"
     ],
-    "mpLink": "https://mpago.la/exemplo2",
-    "pdfPath": "/pdfs/transpetro-contabilidade.pdf"
+    "syllabus": [
+      {
+        "title": "Contabilidade Geral",
+        "pages": 196,
+        "questions": 280,
+        "topics": [
+          "Patrimônio e escrituração",
+          "Demonstrações contábeis",
+          "Regime de competência"
+        ]
+      },
+      {
+        "title": "Contabilidade de Custos",
+        "pages": 164,
+        "questions": 210,
+        "topics": [
+          "Métodos de custeio",
+          "Margem de contribuição",
+          "Análise custo-volume-lucro"
+        ]
+      },
+      {
+        "title": "Auditoria e Controle",
+        "pages": 138,
+        "questions": 190,
+        "topics": [
+          "Normas de auditoria",
+          "Controles internos",
+          "Riscos e evidências"
+        ]
+      }
+    ],
+    "testimonial": {
+      "name": "Carlos Nogueira",
+      "role": "Contador aprovado em estatal",
+      "quote": "O material conseguiu ser profundo sem ser confuso. As questões comentadas revelaram o padrão da banca.",
+      "score": "86% de acertos"
+    },
+    "mpLink": null,
+    "pdfPath": "/pdfs/transpetro-contabilidade.pdf",
+    "active": true
+  },
+  {
+    "slug": "transpetro-tecnico-ambiental",
+    "title": "Transpetro — Técnico Ambiental",
+    "shortTitle": "Técnico Ambiental",
+    "category": "Meio ambiente",
+    "bank": "Cesgranrio",
+    "level": "Técnico",
+    "pages": 618,
+    "questions": 780,
+    "oldPrice": 129.9,
+    "price": 79.9,
+    "pixPrice": 75.91,
+    "updated": "Agosto de 2026",
+    "cover": "/covers/cover-ambiental.png",
+    "coverClass": "environment",
+    "kicker": "Conhecimento técnico para proteger o ambiente e conquistar seu lugar.",
+    "description": "Legislação, licenciamento, gestão de resíduos e emergências ambientais organizados para o contexto industrial e portuário.",
+    "highlights": [
+      "Legislação ambiental atualizada",
+      "780 questões comentadas",
+      "Casos aplicados à indústria"
+    ],
+    "syllabus": [
+      {
+        "title": "Legislação Ambiental",
+        "pages": 172,
+        "questions": 220,
+        "topics": [
+          "Política Nacional do Meio Ambiente",
+          "Crimes ambientais",
+          "Competências e fiscalização"
+        ]
+      },
+      {
+        "title": "Gestão e Licenciamento",
+        "pages": 156,
+        "questions": 210,
+        "topics": [
+          "EIA/RIMA",
+          "Condicionantes",
+          "Sistemas de gestão ambiental"
+        ]
+      },
+      {
+        "title": "Controle Ambiental",
+        "pages": 204,
+        "questions": 270,
+        "topics": [
+          "Resíduos e efluentes",
+          "Emergências ambientais",
+          "Monitoramento"
+        ]
+      }
+    ],
+    "testimonial": {
+      "name": "Ana Beatriz",
+      "role": "Técnica ambiental aprovada",
+      "quote": "A parte de legislação finalmente fez sentido. O conteúdo aplicado à rotina industrial me deixou muito mais segura.",
+      "score": "1ª colocada na região"
+    },
+    "mpLink": null,
+    "pdfPath": "/pdfs/transpetro-ambiental.pdf",
+    "active": true
   }
 ]

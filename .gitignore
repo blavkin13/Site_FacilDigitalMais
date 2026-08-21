@@ -53,3 +53,6 @@ data/protected/
 
 # Uploads locais/privados
 data/uploads/
+# Runtime e caches locais
+/.sites-runtime/
+/.wrangler/

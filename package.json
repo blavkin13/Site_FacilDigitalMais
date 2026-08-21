@@ -11,13 +11,14 @@
     "start": "next start",
     "test": "npm run build && node --test --test-isolation=none tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern .next",
+
     "db:generate": "drizzle-kit generate",
     "db:init": "tsx db/init.ts",
     "db:migrate": "tsx db/init.ts",
     "db:seed": "tsx db/seed.ts",
     "db:seed-orders": "tsx db/seed-orders.ts",
     "db:seed-simulations": "tsx db/seed-simulations.ts",
-    "db:load-products": "tsx -e 'import { loadProductsToDb } from \"./lib/json-loader-runtime.ts\"; import { initDatabase } from \"./db/init.ts\"; await initDatabase(); await loadProductsToDb();'",
+    "db:load-products": "tsx scripts/load-products.ts",
 
     "test:phase0:build": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase0-build.test.mjs",
     "test:phase0:db": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase0.test.mjs",
@@ -31,7 +32,13 @@
     "test:phase5": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase5.test.mjs",
     "test:phase6": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase6.test.mjs",
 
-    "test:all": "npm run test:phase0 && npm run test:phase1 && npm run test:phase2 && npm run test:phase3 && npm run test:phase3b && npm run test:phase4 && npm run test:phase5 && npm run test:phase6",
+    "test:phase1-products:repo": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase1-products.test.mjs",
+    "test:phase1-products:cli": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase1-loader-cli.test.mjs",
+    "test:phase1-products": "npm run test:phase1-products:repo && npm run test:phase1-products:cli",
+
+    "test:production-build": "rm -rf .next && next build",
+
+    "test:all": "npm run test:phase0 && npm run test:phase1 && npm run test:phase2 && npm run test:phase3 && npm run test:phase3b && npm run test:phase4 && npm run test:phase5 && npm run test:phase6 && npm run test:phase1-products && npm run test:production-build",
 
     "validate": "node scripts/validate-all.mjs"
   },
