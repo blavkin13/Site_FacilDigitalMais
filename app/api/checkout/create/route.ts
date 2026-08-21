@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { getDb } from "../../../../db/index.js";
-import { orders, orderItems, products } from "../../../../db/schema.js";
-import { validateSession } from "../../../../lib/auth.js";
-import { createPaymentPreference } from "../../../../lib/mercadopago.js";
-import { initDatabase } from "../../../../db/init.js";
+import { getDb } from "../../../../db/index";
+import { orders, orderItems, products } from "../../../../db/schema";
+import { validateSession } from "../../../../lib/auth";
+import { createPaymentPreference } from "../../../../lib/mercadopago";
+import { initDatabase } from "../../../../db/init";
 
 export async function POST(request: NextRequest) {
   try {

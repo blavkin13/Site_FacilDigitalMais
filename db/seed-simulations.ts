@@ -1,6 +1,6 @@
-import { initDatabase } from "./init.js";
-import { getDb } from "./index.js";
-import { questions, simulations } from "./schema.js";
+import { initDatabase } from "./init";
+import { getDb } from "./index";
+import { questions, simulations } from "./schema";
 
 export async function seedSimulations() {
   console.log("🌱 Iniciando seed de simulados e questões...");

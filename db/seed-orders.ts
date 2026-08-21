@@ -1,6 +1,6 @@
-import { initDatabase } from "./init.js";
-import { getDb } from "./index.js";
-import { orders, orderItems, products, users } from "./schema.js";
+import { initDatabase } from "./init";
+import { getDb } from "./index";
+import { orders, orderItems, products, users } from "./schema";
 import { eq } from "drizzle-orm";
 
 export async function seedTestOrders() {

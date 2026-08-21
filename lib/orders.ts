@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import { getDb } from "../db/index.js";
-import { orders, orderItems, products } from "../db/schema.js";
+import { getDb } from "../db/index";
+import { orders, orderItems, products } from "../db/schema";
 
 export interface UserOrder {
   id: number;

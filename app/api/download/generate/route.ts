@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { join } from "path";
-import { getDb } from "../../../../db/index.js";
-import { orders, orderItems, products, protectedDownloads, users } from "../../../../db/schema.js";
-import { validateSession } from "../../../../lib/auth.js";
-import { generateProtectedPdf, validateCpf } from "../../../../lib/pdf-protection.js";
-import { initDatabase } from "../../../../db/init.js";
+import { getDb } from "../../../../db/index";
+import { orders, orderItems, products, protectedDownloads, users } from "../../../../db/schema";
+import { validateSession } from "../../../../lib/auth";
+import { generateProtectedPdf, validateCpf } from "../../../../lib/pdf-protection";
+import { initDatabase } from "../../../../db/init";
 
 export async function POST(request: NextRequest) {
   try {

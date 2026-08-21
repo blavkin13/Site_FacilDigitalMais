@@ -1,7 +1,7 @@
 import { readFile, writeFile, readdir } from "fs/promises";
 import { join } from "path";
-import { getDb } from "../db/index.js";
-import { products, questions, simulations } from "../db/schema.js";
+import { getDb } from "../db/index";
+import { products, questions, simulations } from "../db/schema";
 import { eq } from "drizzle-orm";
 
 // Interface para produto JSON

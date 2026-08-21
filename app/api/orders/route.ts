@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, desc, and } from "drizzle-orm";
-import { getDb } from "../../../db/index.js";
-import { orders, orderItems, products } from "../../../db/schema.js";
-import { validateSession } from "../../../lib/auth.js";
-import { initDatabase } from "../../../db/init.js";
+import { getDb } from "../../../db/index";
+import { orders, orderItems, products } from "../../../db/schema";
+import { validateSession } from "../../../lib/auth";
+import { initDatabase } from "../../../db/init";
 
 // GET /api/orders — Listar pedidos do usuário logado
 export async function GET(request: NextRequest) {

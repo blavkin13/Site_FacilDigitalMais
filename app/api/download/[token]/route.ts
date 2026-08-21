@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
-import { getDb } from "../../../../db/index.js";
-import { protectedDownloads } from "../../../../db/schema.js";
-import { getProtectedPdfByToken } from "../../../../lib/pdf-protection.js";
-import { initDatabase } from "../../../../db/init.js";
+import { getDb } from "../../../../db/index";
+import { protectedDownloads } from "../../../../db/schema";
+import { getProtectedPdfByToken } from "../../../../lib/pdf-protection";
+import { initDatabase } from "../../../../db/init";
 
 export async function GET(
   request: NextRequest,

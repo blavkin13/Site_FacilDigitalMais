@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { getDb } from "../../../../db/index.js";
-import { orders } from "../../../../db/schema.js";
-import { getPaymentStatus, verifyWebhookSignature } from "../../../../lib/mercadopago.js";
-import { initDatabase } from "../../../../db/init.js";
+import { getDb } from "../../../../db/index";
+import { orders } from "../../../../db/schema";
+import { getPaymentStatus, verifyWebhookSignature } from "../../../../lib/mercadopago";
+import { initDatabase } from "../../../../db/init";
 
 const MP_WEBHOOK_SECRET = process.env.MERCADO_PAGO_WEBHOOK_SECRET || "";
 

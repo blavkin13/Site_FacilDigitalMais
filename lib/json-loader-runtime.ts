@@ -1,8 +1,8 @@
 import { readFile, watch } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
-import { getDb } from "../db/index.js";
-import { products as productsTable } from "../db/schema.js";
+import { getDb } from "../db/index";
+import { products as productsTable } from "../db/schema";
 import { eq } from "drizzle-orm";
 
 const PRODUCTS_JSON_PATH = join(process.cwd(), "data", "products.json");

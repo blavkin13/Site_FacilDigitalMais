@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "../../../../lib/auth.js";
-import { initDatabase } from "../../../../db/init.js";
+import { validateSession } from "@/lib/auth";
+import { initDatabase } from "@/db/init";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,7 +10,10 @@ export async function GET(request: NextRequest) {
 
     if (!token) {
       return NextResponse.json(
-        { authenticated: false, user: null },
+        {
+          authenticated: false,
+          user: null,
+        },
         { status: 200 }
       );
     }
@@ -18,11 +21,14 @@ export async function GET(request: NextRequest) {
     const user = await validateSession(token);
 
     if (!user) {
-      // Limpar cookie expirado
       const response = NextResponse.json(
-        { authenticated: false, user: null },
+        {
+          authenticated: false,
+          user: null,
+        },
         { status: 200 }
       );
+
       response.cookies.set("fd-session", "", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -30,6 +36,7 @@ export async function GET(request: NextRequest) {
         path: "/",
         maxAge: 0,
       });
+
       return response;
     }
 
@@ -46,8 +53,12 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Erro ao verificar sessão:", error);
+
     return NextResponse.json(
-      { authenticated: false, user: null },
+      {
+        authenticated: false,
+        user: null,
+      },
       { status: 200 }
     );
   }

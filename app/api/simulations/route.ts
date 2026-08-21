@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
-import { getDb } from "../../../db/index.js";
-import { simulations, orders, users } from "../../../db/schema.js";
-import { validateSession } from "../../../lib/auth.js";
-import { initDatabase } from "../../../db/init.js";
+import { getDb } from "../../../db/index";
+import { simulations, orders, users } from "../../../db/schema";
+import { validateSession } from "../../../lib/auth";
+import { initDatabase } from "../../../db/init";
 
 // GET /api/simulations — Listar simulados disponíveis
 export async function GET(request: NextRequest) {
