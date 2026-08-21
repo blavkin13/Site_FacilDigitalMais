@@ -28,21 +28,11 @@ function readProjectFile(
 
 
 /**
- * Remove comentários do código antes de verificações
- * que procuram conteúdo renderizável/hardcoded.
+ * Remove comentários antes de verificações que procuram
+ * conteúdo hardcoded na interface.
  *
- * Isso evita falsos positivos como:
- *
- *   // removemos "18 apostilas"
- *
- * ou:
- *
- *   /*
- *    * "18 apostilas" era um valor antigo
- *    *\/
- *
- * O teste deve analisar comportamento do código,
- * e não palavras presentes na documentação.
+ * Assim, documentação técnica dentro do arquivo não gera
+ * falso positivo nos testes.
  */
 function stripComments(
   source
@@ -88,8 +78,15 @@ describe(
 
         assert.doesNotMatch(
           content,
-          /import\s*\{\s*products\s*\}\s*from\s*["'][^"']*lib\/products["']/,
-          "Home não pode importar o catálogo hardcoded"
+          /import\s*\{\s*products\s*\}\s*from/,
+          "Home não pode importar catálogo hardcoded"
+        );
+
+
+        assert.doesNotMatch(
+          content,
+          /lib\/products/,
+          "Home não pode depender do módulo legado removido"
         );
       }
     );
@@ -144,6 +141,13 @@ describe(
           /products=\{/,
           "Produtos devem ser enviados ao Catalog por props"
         );
+
+
+        assert.doesNotMatch(
+          content,
+          /lib\/products/,
+          "Página do catálogo não pode depender do módulo legado"
+        );
       }
     );
 
@@ -169,7 +173,7 @@ describe(
 
 
     test(
-      "Catalog client não pode importar array hardcoded",
+      "Catalog client deve receber produtos por props",
       () => {
         const content =
           readProjectFile(
@@ -181,7 +185,14 @@ describe(
         assert.doesNotMatch(
           content,
           /import\s*\{\s*products\s*\}\s*from/,
-          "Catalog não deve importar products"
+          "Catalog não deve importar array products"
+        );
+
+
+        assert.doesNotMatch(
+          content,
+          /lib\/products/,
+          "Catalog não pode depender do módulo legado"
         );
 
 
@@ -189,6 +200,13 @@ describe(
           content,
           /products:\s*Product\[\]/,
           "Catalog deve receber produtos por props"
+        );
+
+
+        assert.match(
+          content,
+          /lib\/product-types/,
+          "Catalog deve utilizar o contrato Product independente"
         );
       }
     );
@@ -228,7 +246,7 @@ describe(
 
 
     test(
-      "ProductCard não deve importar valores runtime de lib/products",
+      "ProductCard deve utilizar somente o modelo Product independente",
       () => {
         const content =
           readProjectFile(
@@ -239,15 +257,22 @@ describe(
 
         assert.doesNotMatch(
           content,
-          /import\s*\{\s*formatPrice[^}]*\}\s*from\s*["'][^"']*lib\/products["']/,
-          "ProductCard não deve carregar lib/products em runtime"
+          /lib\/products/,
+          "ProductCard não pode depender de lib/products"
         );
 
 
         assert.match(
           content,
-          /import\s+type\s*\{\s*Product/,
-          "ProductCard pode utilizar somente o tipo Product"
+          /import\s+type\s*\{[\s\S]*?\bProduct\b[\s\S]*?\}\s*from\s*["'][^"']*lib\/product-types["']/,
+          "ProductCard deve importar Product de product-types"
+        );
+
+
+        assert.match(
+          content,
+          /function\s+formatPrice\s*\(/,
+          "ProductCard pode manter formatador local enquanto não depende do catálogo"
         );
       }
     );
@@ -263,10 +288,6 @@ describe(
           );
 
 
-        /**
-         * Comentários não fazem parte da interface renderizada
-         * e não devem influenciar este teste.
-         */
         const content =
           stripComments(
             rawContent
@@ -312,25 +333,6 @@ describe(
           content,
           /category\.count/,
           "Quantidade exibida deve utilizar a contagem calculada"
-        );
-      }
-    );
-
-
-    test(
-      "esta etapa não deve migrar ainda ProductDetail",
-      () => {
-        const content =
-          readProjectFile(
-            "components",
-            "product-detail.tsx"
-          );
-
-
-        assert.match(
-          content,
-          /products/,
-          "ProductDetail continua legado até a Fase 2B"
         );
       }
     );

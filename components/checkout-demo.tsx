@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { formatPrice } from "../lib/products";
+import { formatPrice } from "../lib/currency";
 import { useShop } from "./shop-provider";
 export function CheckoutDemo(){
  const {cart}=useShop();const [method,setMethod]=useState("pix");const [coupon,setCoupon]=useState("");const [applied,setApplied]=useState(false);const [done,setDone]=useState(false);

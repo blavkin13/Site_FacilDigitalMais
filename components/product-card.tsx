@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import type {
   Product,
-} from "../lib/products";
+} from "../lib/product-types";
 
 import {
   useShop,

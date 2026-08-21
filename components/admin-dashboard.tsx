@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useAuth } from "./auth-provider";
-import { formatPrice } from "../lib/products";
+import { formatPrice } from "../lib/currency";
 import Link from "next/link";
 import {
   LineChart,

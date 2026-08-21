@@ -16,7 +16,7 @@ import {
 
 import type {
   Product,
-} from "../../../lib/products";
+} from "../../../lib/product-types";
 
 
 /**

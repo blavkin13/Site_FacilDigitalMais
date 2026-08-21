@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatPrice } from "../lib/products";
+import { formatPrice } from "../lib/currency";
 import { useShop } from "./shop-provider";
 import { useAuth } from "./auth-provider";
 

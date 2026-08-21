@@ -19,7 +19,7 @@ import {
 
 import type {
   Product,
-} from "./products";
+} from "./product-types";
 
 /**
  * ============================================================

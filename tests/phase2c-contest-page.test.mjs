@@ -27,32 +27,6 @@ function readProjectFile(
 }
 
 
-/**
- * Remove imports exclusivamente de tipo.
- *
- * Exemplo:
- *
- * import type {
- *   Product,
- * } from "../lib/products";
- *
- * Esse import desaparece na compilação TypeScript e,
- * portanto, não representa dependência runtime do
- * catálogo legado.
- *
- * Os testes que procuram imports runtime devem analisar
- * somente o código restante.
- */
-function stripTypeImports(
-  source
-) {
-  return source.replace(
-    /import\s+type\s*\{[\s\S]*?\}\s*from\s*["'][^"']+["'];?/g,
-    ""
-  );
-}
-
-
 describe(
   "Fase 2C - Concurso alimentado pelo SQLite",
   () => {
@@ -77,8 +51,8 @@ describe(
 
         assert.doesNotMatch(
           content,
-          /import\s*\{\s*products\s*\}/,
-          "Página não pode importar catálogo hardcoded"
+          /lib\/products/,
+          "Página não pode depender do catálogo legado"
         );
       }
     );
@@ -169,6 +143,34 @@ describe(
 
 
     test(
+      "pagina de concurso deve utilizar Product do modulo de tipos",
+      () => {
+        const content =
+          readProjectFile(
+            "app",
+            "concurso",
+            "[slug]",
+            "page.tsx"
+          );
+
+
+        assert.match(
+          content,
+          /from\s*["'][^"']*lib\/product-types["']/,
+          "Product deve vir de product-types"
+        );
+
+
+        assert.doesNotMatch(
+          content,
+          /lib\/products/,
+          "Página não pode importar o módulo removido"
+        );
+      }
+    );
+
+
+    test(
       "ContestLanding deve receber produtos por props",
       () => {
         const content =
@@ -195,52 +197,26 @@ describe(
 
 
     test(
-      "ContestLanding nao pode importar array hardcoded em runtime",
+      "ContestLanding deve utilizar product-types",
       () => {
-        const rawContent =
+        const content =
           readProjectFile(
             "components",
             "contest-landing.tsx"
           );
 
 
-        /**
-         * import type é permitido nesta etapa.
-         *
-         * Ele existe apenas para tipagem e desaparece
-         * completamente do JavaScript produzido.
-         */
-        const runtimeContent =
-          stripTypeImports(
-            rawContent
-          );
-
-
-        assert.doesNotMatch(
-          runtimeContent,
-          /import\s*\{\s*[^}]*\bproducts\b[^}]*\}\s*from\s*["'][^"']*lib\/products["']/,
-          "ContestLanding não pode importar o array products em runtime"
-        );
-
-
-        assert.doesNotMatch(
-          runtimeContent,
-          /from\s*["'][^"']*lib\/products["']/,
-          "ContestLanding não pode depender de lib/products em runtime"
-        );
-
-
-        /**
-         * Nesta etapa ainda permitimos usar Product
-         * exclusivamente como tipo.
-         *
-         * A remoção definitiva de lib/products.ts acontecerá
-         * na Fase 2D.
-         */
         assert.match(
-          rawContent,
-          /import\s+type\s*\{[\s\S]*?\bProduct\b[\s\S]*?\}\s*from\s*["'][^"']*lib\/products["']/,
-          "Product pode permanecer temporariamente como import type"
+          content,
+          /from\s*["'][^"']*lib\/product-types["']/,
+          "ContestLanding deve importar Product de product-types"
+        );
+
+
+        assert.doesNotMatch(
+          content,
+          /lib\/products/,
+          "ContestLanding não pode depender do módulo legado"
         );
       }
     );
