@@ -1,52 +1,88 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ==========================================
-# SCRIPT DE DEPLOY - HOSTINGER VPS
+# DEPLOY - FACIL DIGITAL+
+# HOSTINGER VPS / NODE.JS / NEXT.JS / SQLITE
 # ==========================================
 
-set -e
+set -euo pipefail
 
-echo "🚀 Iniciando deploy na Hostinger..."
-
-# Configurações
 APP_NAME="facil-digital-plus"
 DEPLOY_DIR="/var/www/$APP_NAME"
-NODE_ENV="production"
 
-# Verificar se estamos na branch main
+echo "🚀 Iniciando preparação de deploy..."
+echo ""
+
+# ==========================================
+# VALIDAR BRANCH
+# ==========================================
+
 CURRENT_BRANCH=$(git branch --show-current)
+
 if [ "$CURRENT_BRANCH" != "main" ]; then
-    echo "⚠️  Você está na branch $CURRENT_BRANCH. Deploy recomendado apenas na main."
-    read -p "Deseja continuar? (y/n): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "⚠️  Branch atual: $CURRENT_BRANCH"
+    echo "⚠️  Deploy de produção é recomendado apenas pela branch main."
+    echo ""
+
+    read -r -p "Deseja continuar mesmo assim? (y/n): " REPLY
+
+    if [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
+        echo "❌ Deploy cancelado."
         exit 1
     fi
 fi
 
+# ==========================================
+# INSTALAR DEPENDÊNCIAS
+# ==========================================
+
 echo "📦 Instalando dependências..."
 npm ci
 
-echo "🔨 Fazendo build..."
+echo ""
+
+# ==========================================
+# BUILD
+# ==========================================
+
+echo "🔨 Gerando build de produção..."
 npm run build
 
-echo "🗄️  Executando migrações do banco..."
-npm run db:init
-npm run db:seed 2>/dev/null || true  # Não falhar se já existir
-npm run db:seed-orders 2>/dev/null || true
-npm run db:seed-simulations 2>/dev/null || true
-
-echo "📁 Preparando arquivos para produção..."
-# Remover arquivos de desenvolvimento
-rm -rf tests/*.ts
-rm -rf tests/_tmp_*.ts
-
-echo "✅ Build concluído!"
 echo ""
-echo "📋 PRÓXIMOS PASSOS:"
-echo "1. Faça upload dos arquivos para $DEPLOY_DIR na Hostinger"
-echo "2. Configure o arquivo .env com suas credenciais"
-echo "3. Inicie o servidor com: npm run start"
-echo "4. Configure o Nginx como reverse proxy"
+
+# ==========================================
+# BANCO DE DADOS
+# ==========================================
+
+echo "🗄️  Aplicando migrations do banco..."
+npm run db:migrate
+
 echo ""
-echo "🎉 Deploy preparado com sucesso!"
+
+# IMPORTANTE:
+# Seeds NÃO são executados automaticamente em produção.
+#
+# db:seed
+# db:seed-orders
+# db:seed-simulations
+#
+# são comandos administrativos/de desenvolvimento e devem
+# ser executados somente de forma explícita quando necessário.
+
+# ==========================================
+# FINALIZAÇÃO
+# ==========================================
+
+echo "✅ Build e migrations concluídos."
+echo ""
+echo "📋 Ambiente esperado na Hostinger:"
+echo "   Aplicação: $DEPLOY_DIR"
+echo "   Runtime: Node.js"
+echo "   Framework: Next.js"
+echo "   Banco: SQLite"
+echo "   Processo: PM2"
+echo "   Proxy reverso: Nginx"
+echo ""
+echo "⚠️  Nenhum seed de teste foi executado."
+echo ""
+echo "🎉 Preparação de deploy concluída!"

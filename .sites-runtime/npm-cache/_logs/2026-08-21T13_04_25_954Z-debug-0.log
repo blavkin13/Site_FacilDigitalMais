@@ -1,0 +1,19 @@
+0 verbose cli /usr/local/share/nvm/versions/node/v24.14.0/bin/node /usr/local/share/nvm/versions/node/v24.14.0/lib/node_modules/npm/bin/npm-cli.js
+1 info using npm@11.9.0
+2 info using node@v24.14.0
+3 silly config load:file:/usr/local/share/nvm/versions/node/v24.14.0/lib/node_modules/npm/npmrc
+4 silly config load:file:/workspaces/Site_FacilDigitalMais/.npmrc
+5 silly config load:file:/home/codespace/.npmrc
+6 silly config load:file:/usr/local/share/nvm/versions/node/v24.14.0/etc/npmrc
+7 verbose title npm exec tsx --no-warnings /workspaces/Site_FacilDigitalMais/tests/_tmp_pdf_test.ts
+8 verbose argv "exec" "--" "tsx" "--no-warnings" "/workspaces/Site_FacilDigitalMais/tests/_tmp_pdf_test.ts"
+9 verbose logfile logs-max:10 dir:/workspaces/Site_FacilDigitalMais/.sites-runtime/npm-cache/_logs/2026-08-21T13_04_25_954Z-
+10 verbose logfile /workspaces/Site_FacilDigitalMais/.sites-runtime/npm-cache/_logs/2026-08-21T13_04_25_954Z-debug-0.log
+11 silly logfile start cleaning logs, removing 1 files
+12 silly logfile done cleaning log files
+13 verbose cwd /workspaces/Site_FacilDigitalMais
+14 verbose os Linux 6.8.0-1052-azure
+15 verbose node v24.14.0
+16 verbose npm  v11.9.0
+17 verbose exit 0
+18 info ok

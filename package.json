@@ -13,10 +13,12 @@
     "lint": "eslint . --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "db:init": "npx tsx db/init.ts",
+    "db:migrate": "npx tsx db/init.ts",
     "db:seed": "npx tsx db/seed.ts",
     "db:seed-orders": "npx tsx db/seed-orders.ts",
     "db:seed-simulations": "npx tsx db/seed-simulations.ts",
-    "db:load-products": "npx tsx -e 'import { loadProductsToDb } from \"./lib/json-loader-runtime.js\"; import { initDatabase } from \"./db/init.js\"; await initDatabase(); await loadProductsToDb();'",
+    "db:load-products": "npx tsx -e 'import { loadProductsToDb } from \"./lib/json-loader-runtime.ts\"; import { initDatabase } from \"./db/init.ts\"; await initDatabase(); await loadProductsToDb();'",
+    "test:phase0": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase0.test.mjs",
     "test:phase1": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/auth.test.mjs",
     "test:phase2": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase2.test.mjs",
     "test:phase3": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase3.test.mjs",
@@ -24,7 +26,7 @@
     "test:phase4": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase4.test.mjs",
     "test:phase5": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase5.test.mjs",
     "test:phase6": "NODE_NO_WARNINGS=1 npx tsx --test --test-concurrency=1 --no-warnings tests/phase6.test.mjs",
-    "test:all": "npm run test:phase1 && npm run test:phase2 && npm run test:phase3 && npm run test:phase3b && npm run test:phase4 && npm run test:phase5 && npm run test:phase6",
+    "test:all": "npm run test:phase0 && npm run test:phase1 && npm run test:phase2 && npm run test:phase3 && npm run test:phase3b && npm run test:phase4 && npm run test:phase5 && npm run test:phase6",
     "validate": "node scripts/validate-all.mjs"
   },
   "dependencies": {
