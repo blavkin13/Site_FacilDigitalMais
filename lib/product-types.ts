@@ -1,15 +1,21 @@
 export type ProductSyllabusItem = {
   title: string;
+
   pages: number;
+
   questions: number;
+
   topics: string[];
 };
 
 
 export type ProductTestimonial = {
   name: string;
+
   role: string;
+
   quote: string;
+
   score: string;
 };
 
@@ -19,6 +25,9 @@ export type Product = {
 
   title: string;
 
+  /**
+   * Cargo / especialidade da apostila.
+   */
   shortTitle: string;
 
   category: string;
@@ -26,6 +35,20 @@ export type Product = {
   bank: string;
 
   level: string;
+
+  /**
+   * Organização responsável pelo concurso.
+   *
+   * Ex.: Transpetro.
+   */
+  organization: string;
+
+  /**
+   * Agrupamento público.
+   *
+   * Ex.: transpetro.
+   */
+  contestSlug: string;
 
   pages: number;
 
@@ -47,9 +70,19 @@ export type Product = {
 
   description: string;
 
+  seoTitle: string;
+
+  seoDescription: string;
+
   highlights: string[];
 
-  syllabus: ProductSyllabusItem[];
+  syllabus:
+    ProductSyllabusItem[];
 
-  testimonial: ProductTestimonial;
+  testimonial:
+    ProductTestimonial;
+
+  publishedAt: string;
+
+  updatedAt: string;
 };

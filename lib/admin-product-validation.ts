@@ -12,6 +12,8 @@ type CommonEditableProductValues =
     | "category"
     | "bank"
     | "level"
+    | "organization"
+    | "contestSlug"
     | "pages"
     | "questions"
     | "oldPrice"
@@ -21,6 +23,8 @@ type CommonEditableProductValues =
     | "coverClass"
     | "kicker"
     | "description"
+    | "seoTitle"
+    | "seoDescription"
     | "highlights"
     | "syllabus"
     | "testimonial"
@@ -62,6 +66,8 @@ const CREATE_FIELDS =
     "category",
     "bank",
     "level",
+    "organization",
+    "contestSlug",
     "pages",
     "questions",
     "oldPrice",
@@ -71,6 +77,8 @@ const CREATE_FIELDS =
     "coverClass",
     "kicker",
     "description",
+    "seoTitle",
+    "seoDescription",
     "highlights",
     "syllabus",
     "testimonial",
@@ -415,6 +423,46 @@ function optionalSlug(
   );
 }
 
+function optionalNullableSlugField(
+  record:
+    JsonRecord,
+  field:
+    string
+): string | null | undefined {
+  const value =
+    optionalNullableString(
+      record,
+      field,
+      120
+    );
+
+
+  if (
+    value ===
+      undefined ||
+    value ===
+      null
+  ) {
+    return value;
+  }
+
+
+  if (
+    value.length <
+      3 ||
+    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(
+      value
+    )
+  ) {
+    fail(
+      `O campo "${field}" deve conter apenas letras minúsculas, números e hífens.`,
+      field
+    );
+  }
+
+
+  return value;
+}
 
 function normalizeNumber(
   value: unknown,
@@ -1147,6 +1195,19 @@ export function validateAdminProductCreate(
         80
       ),
 
+    organization:
+      optionalNullableString(
+        record,
+        "organization",
+        120
+      ),
+
+    contestSlug:
+      optionalNullableSlugField(
+        record,
+        "contestSlug"
+      ),
+
     pages:
       optionalNumber(
         record,
@@ -1236,6 +1297,20 @@ export function validateAdminProductCreate(
         record,
         "description",
         5000
+      ),
+
+    seoTitle:
+      optionalNullableString(
+        record,
+        "seoTitle",
+        70
+      ),
+
+    seoDescription:
+      optionalNullableString(
+        record,
+        "seoDescription",
+        180
       ),
 
     highlights:
@@ -1403,6 +1478,38 @@ export function validateAdminProductPatch(
   ) {
     updates.level =
       level;
+  }
+
+  const organization =
+    optionalNullableString(
+      record,
+      "organization",
+      120
+    );
+
+
+  if (
+    organization !==
+    undefined
+  ) {
+    updates.organization =
+      organization;
+  }
+
+
+  const contestSlug =
+    optionalNullableSlugField(
+      record,
+      "contestSlug"
+    );
+
+
+  if (
+    contestSlug !==
+    undefined
+  ) {
+    updates.contestSlug =
+      contestSlug;
   }
 
 
@@ -1577,6 +1684,38 @@ export function validateAdminProductPatch(
       description;
   }
 
+  const seoTitle =
+    optionalNullableString(
+      record,
+      "seoTitle",
+      70
+    );
+
+
+  if (
+    seoTitle !==
+    undefined
+  ) {
+    updates.seoTitle =
+      seoTitle;
+  }
+
+
+  const seoDescription =
+    optionalNullableString(
+      record,
+      "seoDescription",
+      180
+    );
+
+
+  if (
+    seoDescription !==
+    undefined
+  ) {
+    updates.seoDescription =
+      seoDescription;
+  }
 
   const highlights =
     optionalHighlights(

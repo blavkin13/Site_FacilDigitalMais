@@ -699,8 +699,11 @@ describe(
 
 
         /**
-         * Desde a Fase 3C a publicação depende
-         * obrigatoriamente de capa + PDF.
+         * Desde a Fase 3C/3D a publicação depende
+         * de requisitos server-side.
+         *
+         * A 3D ampliou essa validação para todos os
+         * campos editoriais obrigatórios.
          */
         const publishResponse =
           await productsRoute.PATCH(
@@ -734,13 +737,74 @@ describe(
 
         assert.match(
           publishError.error,
-          /capa e PDF/i
+          /não está pronta para publicação/i
         );
 
 
         /**
-         * Campos editoriais continuam editáveis mesmo
-         * enquanto a apostila está em rascunho.
+         * Não verificamos apenas a mensagem textual.
+         *
+         * O contrato atual da API informa os motivos
+         * estruturados através de "issues".
+         */
+        assert.ok(
+          Array.isArray(
+            publishError.issues
+          ),
+          "Resposta deve informar os requisitos de publicação ausentes"
+        );
+
+
+        const issueFields =
+          publishError.issues.map(
+            (
+              issue
+            ) =>
+              issue.field
+          );
+
+
+        assert.ok(
+          issueFields.includes(
+            "cover"
+          ),
+          "Capa ausente deve impedir publicação"
+        );
+
+
+        assert.ok(
+          issueFields.includes(
+            "pdfPath"
+          ),
+          "PDF ausente deve impedir publicação"
+        );
+
+
+        /**
+         * A Fase 3D também exige metadados editoriais.
+         * O produto criado neste teste é propositalmente
+         * mínimo, então esses campos também devem aparecer
+         * entre os requisitos pendentes.
+         */
+        assert.ok(
+          issueFields.includes(
+            "organization"
+          ),
+          "Organização ausente deve impedir publicação"
+        );
+
+
+        assert.ok(
+          issueFields.includes(
+            "contestSlug"
+          ),
+          "Slug do concurso ausente deve impedir publicação"
+        );
+
+
+        /**
+         * Campos editoriais continuam editáveis enquanto
+         * a apostila permanece em rascunho.
          */
         const updateResponse =
           await productsRoute.PATCH(
@@ -784,6 +848,9 @@ describe(
         );
 
 
+        /**
+         * Mass assignment continua proibido.
+         */
         const forbiddenResponse =
           await productsRoute.PATCH(
             createRequest({

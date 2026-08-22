@@ -160,6 +160,30 @@ const migrations: Migration[] = [
       );
     `,
   },
+  {
+    id: "0002_product_editorial_metadata",
+    description: "Metadados editoriais, SEO e publicação de apostilas",
+    sql: `
+      ALTER TABLE products
+        ADD COLUMN organization TEXT;
+
+      ALTER TABLE products
+        ADD COLUMN contest_slug TEXT;
+
+      ALTER TABLE products
+        ADD COLUMN seo_title TEXT;
+
+      ALTER TABLE products
+        ADD COLUMN seo_description TEXT;
+
+      ALTER TABLE products
+        ADD COLUMN published_at TEXT;
+
+      CREATE INDEX IF NOT EXISTS
+        idx_products_active_contest_slug
+        ON products(active, contest_slug);
+    `,
+  },
 ];
 
 /**

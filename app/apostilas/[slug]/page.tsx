@@ -16,34 +16,26 @@ import {
 } from "../../../lib/product-repository";
 
 
-/**
- * A landing da apostila deve consultar o SQLite
- * em runtime.
- *
- * Isso permite que novos slugs criados pelo painel
- * administrativo funcionem sem rebuild da aplicação.
- */
 export const dynamic =
   "force-dynamic";
 
 
 interface ProductPageProps {
-  params: Promise<{
-    slug: string;
-  }>;
+  params:
+    Promise<{
+      slug:
+        string;
+    }>;
 }
 
 
-/**
- * Metadata também é alimentada pelo produto ativo
- * existente no SQLite.
- */
 export async function generateMetadata({
   params,
 }: ProductPageProps): Promise<Metadata> {
   const {
     slug,
-  } = await params;
+  } =
+    await params;
 
 
   const product =
@@ -52,54 +44,83 @@ export async function generateMetadata({
     );
 
 
-  if (!product) {
+  if (
+    !product
+  ) {
     return {
       title:
         "Apostila não encontrada",
 
       robots: {
-        index: false,
-        follow: false,
+        index:
+          false,
+
+        follow:
+          false,
       },
     };
   }
 
 
-  return {
-    title:
-      product.title,
+  const title =
+    product.seoTitle ||
+    product.title;
 
-    description:
-      product.description,
+
+  const description =
+    product.seoDescription ||
+    product.description;
+
+
+  return {
+    title,
+
+    description,
+
+    robots: {
+      index:
+        true,
+
+      follow:
+        true,
+    },
 
     openGraph: {
-      title:
-        product.title,
+      title,
 
-      description:
-        product.description,
+      description,
 
-      images: [
-        {
-          url:
-            product.cover,
-        },
-      ],
+      type:
+        "website",
+
+      images:
+        product.cover
+          ? [
+              {
+                url:
+                  product.cover,
+
+                alt:
+                  product.title,
+              },
+            ]
+          : [],
     },
 
     twitter: {
       card:
         "summary_large_image",
 
-      title:
-        product.title,
+      title,
 
-      description:
-        product.description,
+      description,
 
-      images: [
-        product.cover,
-      ],
+      images:
+        product.cover
+          ? [
+              product.cover,
+            ]
+          : [],
     },
   };
 }
@@ -110,23 +131,19 @@ export default async function ProductPage({
 }: ProductPageProps) {
   const {
     slug,
-  } = await params;
+  } =
+    await params;
 
 
-  /**
-   * Somente produtos ativos são retornados pelo repository.
-   *
-   * Produto inexistente ou desativado:
-   *
-   *     → 404
-   */
   const product =
     await getActiveProductBySlug(
       slug
     );
 
 
-  if (!product) {
+  if (
+    !product
+  ) {
     notFound();
   }
 

@@ -230,9 +230,92 @@ function parseTestimonial(
  *   ↓
  * Produto seguro para o frontend
  */
+
+function inferOrganizationFromTitle(
+  title: string
+): string {
+  const [
+    organization,
+  ] =
+    title.split(
+      /\s+[—–]\s+/
+    );
+
+
+  return (
+    organization?.trim() ||
+    ""
+  );
+}
+
+
+function inferLegacyContestSlug(
+  title: string,
+  productSlug: string
+): string {
+  const organization =
+    inferOrganizationFromTitle(
+      title
+    );
+
+
+  if (
+    organization
+  ) {
+    const value =
+      slugify(
+        organization
+      );
+
+
+    if (
+      value
+    ) {
+      return value;
+    }
+  }
+
+
+  return (
+    productSlug
+      .split(
+        "-"
+      )
+      .filter(
+        Boolean
+      )[0] ||
+    slugify(
+      title
+    )
+  );
+}
+
 export function mapDatabaseProduct(
   row: DatabaseProduct
 ): Product {
+  const organization =
+    row.organization
+      ?.trim() ||
+    inferOrganizationFromTitle(
+      row.title
+    );
+
+
+  const contestSlug =
+    row.contestSlug
+      ?.trim() ||
+    inferLegacyContestSlug(
+      row.title,
+      row.slug
+    );
+
+
+  const description =
+    row.description
+      ?.trim() ||
+    "";
+
+
   return {
     slug:
       row.slug,
@@ -241,26 +324,36 @@ export function mapDatabaseProduct(
       row.title,
 
     shortTitle:
-      row.shortTitle?.trim() ||
+      row.shortTitle
+        ?.trim() ||
       row.title,
 
     category:
-      row.category?.trim() ||
+      row.category
+        ?.trim() ||
       "Outros",
 
     bank:
-      row.bank?.trim() ||
+      row.bank
+        ?.trim() ||
       "Banca não informada",
 
     level:
-      row.level?.trim() ||
+      row.level
+        ?.trim() ||
       "Nível não informado",
 
+    organization,
+
+    contestSlug,
+
     pages:
-      row.pages ?? 0,
+      row.pages ??
+      0,
 
     questions:
-      row.questions ?? 0,
+      row.questions ??
+      0,
 
     oldPrice:
       row.oldPrice ??
@@ -269,34 +362,47 @@ export function mapDatabaseProduct(
     price:
       row.price,
 
+    /**
+     * Não inventamos mais 5% de desconto.
+     *
+     * Se não houver preço PIX cadastrado,
+     * o preço normal será exibido.
+     */
     pixPrice:
       row.pixPrice ??
-      Number(
-        (
-          row.price * 0.95
-        ).toFixed(2)
-      ),
+      row.price,
 
     updated:
-      row.updated?.trim() ||
+      row.updated
+        ?.trim() ||
       "",
 
     cover:
-      row.cover?.trim() ||
+      row.cover
+        ?.trim() ||
       "",
 
     coverClass:
-      row.coverClass?.trim() ||
+      row.coverClass
+        ?.trim() ||
       "default",
 
     kicker:
-      row.kicker?.trim() ||
-      row.description?.trim() ||
-      "",
+      row.kicker
+        ?.trim() ||
+      description,
 
-    description:
-      row.description?.trim() ||
-      "",
+    description,
+
+    seoTitle:
+      row.seoTitle
+        ?.trim() ||
+      row.title,
+
+    seoDescription:
+      row.seoDescription
+        ?.trim() ||
+      description,
 
     highlights:
       parseHighlights(
@@ -312,6 +418,13 @@ export function mapDatabaseProduct(
       parseTestimonial(
         row.testimonial
       ),
+
+    publishedAt:
+      row.publishedAt ||
+      "",
+
+    updatedAt:
+      row.updatedAt,
   };
 }
 
@@ -373,42 +486,31 @@ function slugify(
  * explícito. Até lá, esta função centraliza a regra.
  */
 export function getContestSlugFromProduct(
-  product: Pick<
-    Product,
-    "title" | "slug"
-  >
+  product:
+    Pick<
+      Product,
+      | "title"
+      | "slug"
+      | "contestSlug"
+    >
 ): string {
-  const titleParts =
-    product.title.split(
-      /\s+[—–]\s+/
-    );
+  const explicit =
+    product.contestSlug
+      ?.trim();
+
 
   if (
-    titleParts.length > 1 &&
-    titleParts[0]?.trim()
+    explicit
   ) {
-    const titleSlug =
-      slugify(
-        titleParts[0]
-      );
-
-    if (titleSlug) {
-      return titleSlug;
-    }
+    return slugify(
+      explicit
+    );
   }
 
-  /**
-   * Compatibilidade com produtos antigos
-   * cujo título não possui travessão.
-   */
-  const firstSlugPart =
-    product.slug
-      .split("-")
-      .filter(Boolean)[0];
 
-  return (
-    firstSlugPart ||
-    slugify(product.title)
+  return inferLegacyContestSlug(
+    product.title,
+    product.slug
   );
 }
 

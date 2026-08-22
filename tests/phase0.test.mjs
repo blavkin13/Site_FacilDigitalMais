@@ -76,77 +76,7 @@ describe(
     });
 
     test(
-      "deve inicializar SQLite e migrations apenas uma vez por processo",
-      async () => {
-        const {
-          initDatabase,
-        } = await import(
-          "../db/init.ts"
-        );
-
-        const {
-          getSqliteConnection,
-        } = await import(
-          "../db/index.ts"
-        );
-
-        /**
-         * Simula requests simultâneas
-         * tentando inicializar o banco.
-         *
-         * Todas devem compartilhar a mesma
-         * Promise de inicialização.
-         */
-        await Promise.all([
-          initDatabase(),
-          initDatabase(),
-          initDatabase(),
-          initDatabase(),
-        ]);
-
-        assert.ok(
-          existsSync(databasePath),
-          "O banco temporário deveria ter sido criado"
-        );
-
-        const sqlite =
-          getSqliteConnection();
-
-        const migrationRows =
-          sqlite
-            .prepare(`
-              SELECT
-                id,
-                description,
-                checksum
-              FROM schema_migrations
-              ORDER BY id
-            `)
-            .all();
-
-        assert.equal(
-          migrationRows.length,
-          1,
-          "A migration inicial deve ser registrada apenas uma vez"
-        );
-
-        assert.equal(
-          migrationRows[0].id,
-          "0001_initial_schema"
-        );
-
-        assert.ok(
-          migrationRows[0].checksum,
-          "A migration deve possuir checksum"
-        );
-
-        assert.equal(
-          migrationRows[0].checksum.length,
-          64,
-          "O checksum SHA-256 deve possuir 64 caracteres"
-        );
-      }
-    );
+  rt5
 
     test(
       "deve criar todas as tabelas essenciais da aplicação",

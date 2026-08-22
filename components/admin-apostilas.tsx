@@ -13,32 +13,75 @@ import {
   formatPrice,
 } from "../lib/currency";
 
+import {
+  getProductPublicationIssues,
+  isProductReadyForPublication,
+} from "../lib/product-publication";
+
+import {
+  AdminPublicationReadiness,
+} from "./admin-publication-readiness";
+
 
 type AdminProduct = {
   id: number;
+
   slug: string;
+
   title: string;
+
   shortTitle: string | null;
+
   category: string | null;
+
   bank: string | null;
+
   level: string | null;
+
+  organization: string | null;
+
+  contestSlug: string | null;
+
   pages: number | null;
+
   questions: number | null;
+
   oldPrice: number | null;
+
   price: number;
+
   pixPrice: number | null;
+
   updated: string | null;
+
   cover: string | null;
+
   coverClass: string | null;
+
   kicker: string | null;
+
   description: string | null;
+
+  seoTitle: string | null;
+
+  seoDescription: string | null;
+
   highlights: string | null;
+
   syllabus: string | null;
+
   testimonial: string | null;
+
   mpLink: string | null;
+
   pdfPath: string | null;
+
   active: boolean | null;
+
+  publishedAt: string | null;
+
   createdAt: string;
+
   updatedAt: string;
 };
 
@@ -69,17 +112,29 @@ type SyllabusFormItem = {
 
 type ProductFormState = {
   slug: string;
+
   title: string;
+
   shortTitle: string;
+
   category: string;
+
   bank: string;
+
   level: string;
 
+  organization: string;
+
+  contestSlug: string;
+
   pages: string;
+
   questions: string;
 
   oldPrice: string;
+
   price: string;
+
   pixPrice: string;
 
   updated: string;
@@ -87,7 +142,12 @@ type ProductFormState = {
   coverClass: string;
 
   kicker: string;
+
   description: string;
+
+  seoTitle: string;
+
+  seoDescription: string;
 
   highlights: string;
 
@@ -95,8 +155,11 @@ type ProductFormState = {
     SyllabusFormItem[];
 
   testimonialName: string;
+
   testimonialRole: string;
+
   testimonialQuote: string;
+
   testimonialScore: string;
 
   mpLink: string;
@@ -124,37 +187,83 @@ function emptySyllabusItem(): SyllabusFormItem {
 
 function emptyForm(): ProductFormState {
   return {
-    slug: "",
-    title: "",
-    shortTitle: "",
-    category: "",
-    bank: "",
-    level: "",
+    slug:
+      "",
 
-    pages: "",
-    questions: "",
+    title:
+      "",
 
-    oldPrice: "",
-    price: "",
-    pixPrice: "",
+    shortTitle:
+      "",
 
-    updated: "",
+    category:
+      "",
 
-    coverClass: "",
+    bank:
+      "",
 
-    kicker: "",
-    description: "",
+    level:
+      "",
 
-    highlights: "",
+    organization:
+      "",
 
-    syllabus: [],
+    contestSlug:
+      "",
 
-    testimonialName: "",
-    testimonialRole: "",
-    testimonialQuote: "",
-    testimonialScore: "",
+    pages:
+      "",
 
-    mpLink: "",
+    questions:
+      "",
+
+    oldPrice:
+      "",
+
+    price:
+      "",
+
+    pixPrice:
+      "",
+
+    updated:
+      "",
+
+    coverClass:
+      "",
+
+    kicker:
+      "",
+
+    description:
+      "",
+
+    seoTitle:
+      "",
+
+    seoDescription:
+      "",
+
+    highlights:
+      "",
+
+    syllabus:
+      [],
+
+    testimonialName:
+      "",
+
+    testimonialRole:
+      "",
+
+    testimonialQuote:
+      "",
+
+    testimonialScore:
+      "",
+
+    mpLink:
+      "",
   };
 }
 
@@ -181,7 +290,8 @@ function safeParseJson<T>(
 
 
 function productToForm(
-  product: AdminProduct
+  product:
+    AdminProduct
 ): ProductFormState {
   const highlights =
     safeParseJson<string[]>(
@@ -225,6 +335,14 @@ function productToForm(
 
     level:
       product.level ??
+      "",
+
+    organization:
+      product.organization ??
+      "",
+
+    contestSlug:
+      product.contestSlug ??
       "",
 
     pages:
@@ -278,6 +396,14 @@ function productToForm(
 
     description:
       product.description ??
+      "",
+
+    seoTitle:
+      product.seoTitle ??
+      "",
+
+    seoDescription:
+      product.seoDescription ??
       "",
 
     highlights:
@@ -450,7 +576,8 @@ function formatDate(
 
 
 function formPayload(
-  form: ProductFormState
+  form:
+    ProductFormState
 ) {
   const testimonialValues = [
     form.testimonialName.trim(),
@@ -487,6 +614,14 @@ function formPayload(
 
     level:
       form.level.trim() ||
+      null,
+
+    organization:
+      form.organization.trim() ||
+      null,
+
+    contestSlug:
+      form.contestSlug.trim() ||
       null,
 
     pages:
@@ -528,6 +663,14 @@ function formPayload(
 
     description:
       form.description.trim() ||
+      null,
+
+    seoTitle:
+      form.seoTitle.trim() ||
+      null,
+
+    seoDescription:
+      form.seoDescription.trim() ||
       null,
 
     highlights:
@@ -1018,6 +1161,8 @@ export function AdminApostilas() {
                 product.category,
                 product.bank,
                 product.level,
+                product.organization,
+                product.contestSlug,
               ].some(
                 (
                   value
@@ -1761,7 +1906,8 @@ export function AdminApostilas() {
   }
 
   async function togglePublication(
-    product: AdminProduct
+    product:
+      AdminProduct
   ) {
     clearMessages();
 
@@ -1773,17 +1919,34 @@ export function AdminApostilas() {
 
 
     if (
-      targetActive &&
-      !hasRequiredAssets(
-        product
-      )
+      targetActive
     ) {
-      setError(
-        "Esta apostila ainda não possui capa e PDF. Envie os dois arquivos antes de publicar."
-      );
+      const issues =
+        getProductPublicationIssues(
+          product
+        );
 
 
-      return;
+      if (
+        issues.length >
+        0
+      ) {
+        setError(
+          `Esta apostila ainda não pode ser publicada. ${issues
+            .map(
+              (
+                issue
+              ) =>
+                issue.message
+            )
+            .join(
+              " "
+            )}`
+        );
+
+
+        return;
+      }
     }
 
 
@@ -1841,9 +2004,43 @@ export function AdminApostilas() {
       if (
         !response.ok
       ) {
+        const issueDetails =
+          Array.isArray(
+            data.issues
+          )
+            ? data.issues
+                .map(
+                  (
+                    issue:
+                      {
+                        message?:
+                          string;
+                      }
+                  ) =>
+                    issue.message
+                )
+                .filter(
+                  Boolean
+                )
+                .join(
+                  " "
+                )
+            : "";
+
+
         throw new Error(
-          data.error ||
-          "Não foi possível alterar a publicação."
+          [
+            data.error ||
+              "Não foi possível alterar a publicação.",
+
+            issueDetails,
+          ]
+            .filter(
+              Boolean
+            )
+            .join(
+              " "
+            )
         );
       }
 
@@ -2011,7 +2208,7 @@ export function AdminApostilas() {
                   event.target.value
                 )
             }
-            placeholder="Título, slug, banca..."
+            placeholder="Título, órgão, cargo, slug, banca..."
           />
         </label>
 
@@ -2289,16 +2486,18 @@ export function AdminApostilas() {
                           }
                           disabled={
                             !product.active &&
-                            !hasRequiredAssets(
+                            !isProductReadyForPublication(
                               product
                             )
                           }
                           title={
                             !product.active &&
-                            !hasRequiredAssets(
+                            !isProductReadyForPublication(
                               product
                             )
-                              ? "É necessário possuir capa e PDF antes de publicar."
+                              ? getProductPublicationIssues(
+                                  product
+                                )[0]?.message
                               : undefined
                           }
                           onClick={
@@ -2393,10 +2592,11 @@ export function AdminApostilas() {
                     </h3>
 
                     <p>
-                      Defina o nome do rascunho e as
-                      informações principais da apostila.
+                      Identifique a apostila, o concurso
+                      e o cargo de forma explícita.
                     </p>
                   </header>
+
 
                   <div className="admin-form-grid">
                     <label className="admin-field span-2">
@@ -2406,67 +2606,160 @@ export function AdminApostilas() {
 
                       <input
                         type="text"
-                        value={form.title}
-                        onChange={(event) =>
-                          updateTitle(
-                            event.target.value
-                          )
+                        value={
+                          form.title
                         }
-                        maxLength={180}
+                        onChange={
+                          (
+                            event
+                          ) =>
+                            updateTitle(
+                              event.target.value
+                            )
+                        }
+                        maxLength={
+                          180
+                        }
                         placeholder="Ex.: Transpetro — Engenharia Naval"
                         required
                         autoFocus
                       />
 
                       <small>
-                        Este nome identifica o rascunho e será
-                        exibido no catálogo quando a apostila
-                        for publicada.
+                        Nome comercial exibido no catálogo e
+                        na landing page.
                       </small>
                     </label>
 
+
                     <label className="admin-field">
                       <span>
-                        Slug *
+                        Slug da apostila *
                       </span>
 
                       <input
                         type="text"
-                        value={form.slug}
-                        onChange={(event) =>
-                          updateSlug(
-                            event.target.value
-                          )
+                        value={
+                          form.slug
                         }
-                        maxLength={120}
+                        onChange={
+                          (
+                            event
+                          ) =>
+                            updateSlug(
+                              event.target.value
+                            )
+                        }
+                        maxLength={
+                          120
+                        }
                         required
                       />
 
                       <small>
-                        URL: /apostilas/
+                        /apostilas/
                         {form.slug ||
                           "slug-da-apostila"}
                       </small>
                     </label>
 
+
                     <label className="admin-field">
                       <span>
-                        Título curto
+                        Cargo / especialidade
                       </span>
 
                       <input
                         type="text"
-                        value={form.shortTitle}
-                        onChange={(event) =>
-                          updateField(
-                            "shortTitle",
-                            event.target.value
-                          )
+                        value={
+                          form.shortTitle
                         }
-                        maxLength={120}
+                        onChange={
+                          (
+                            event
+                          ) =>
+                            updateField(
+                              "shortTitle",
+                              event.target.value
+                            )
+                        }
+                        maxLength={
+                          120
+                        }
                         placeholder="Ex.: Engenharia Naval"
                       />
+
+                      <small>
+                        Obrigatório antes da publicação.
+                      </small>
                     </label>
+
+
+                    <label className="admin-field">
+                      <span>
+                        Órgão / organização
+                      </span>
+
+                      <input
+                        type="text"
+                        value={
+                          form.organization
+                        }
+                        onChange={
+                          (
+                            event
+                          ) =>
+                            updateField(
+                              "organization",
+                              event.target.value
+                            )
+                        }
+                        maxLength={
+                          120
+                        }
+                        placeholder="Ex.: Transpetro"
+                      />
+
+                      <small>
+                        Empresa ou órgão responsável pelo concurso.
+                      </small>
+                    </label>
+
+
+                    <label className="admin-field">
+                      <span>
+                        Slug do concurso
+                      </span>
+
+                      <input
+                        type="text"
+                        value={
+                          form.contestSlug
+                        }
+                        onChange={
+                          (
+                            event
+                          ) =>
+                            updateField(
+                              "contestSlug",
+                              slugify(
+                                event.target.value
+                              )
+                            )
+                        }
+                        maxLength={
+                          120
+                        }
+                        placeholder="transpetro"
+                      />
+
+                      <small>
+                        /concurso/
+                        {form.contestSlug ||
+                          "slug-do-concurso"}
+                      </small>
+                    </label>
+
 
                     <label className="admin-field">
                       <span>
@@ -2475,17 +2768,25 @@ export function AdminApostilas() {
 
                       <input
                         type="text"
-                        value={form.category}
-                        onChange={(event) =>
-                          updateField(
-                            "category",
-                            event.target.value
-                          )
+                        value={
+                          form.category
                         }
-                        maxLength={100}
+                        onChange={
+                          (
+                            event
+                          ) =>
+                            updateField(
+                              "category",
+                              event.target.value
+                            )
+                        }
+                        maxLength={
+                          100
+                        }
                         placeholder="Ex.: Estatais"
                       />
                     </label>
+
 
                     <label className="admin-field">
                       <span>
@@ -2494,17 +2795,25 @@ export function AdminApostilas() {
 
                       <input
                         type="text"
-                        value={form.bank}
-                        onChange={(event) =>
-                          updateField(
-                            "bank",
-                            event.target.value
-                          )
+                        value={
+                          form.bank
                         }
-                        maxLength={100}
+                        onChange={
+                          (
+                            event
+                          ) =>
+                            updateField(
+                              "bank",
+                              event.target.value
+                            )
+                        }
+                        maxLength={
+                          100
+                        }
                         placeholder="Ex.: Cesgranrio"
                       />
                     </label>
+
 
                     <label className="admin-field">
                       <span>
@@ -2513,17 +2822,25 @@ export function AdminApostilas() {
 
                       <input
                         type="text"
-                        value={form.level}
-                        onChange={(event) =>
-                          updateField(
-                            "level",
-                            event.target.value
-                          )
+                        value={
+                          form.level
                         }
-                        maxLength={80}
+                        onChange={
+                          (
+                            event
+                          ) =>
+                            updateField(
+                              "level",
+                              event.target.value
+                            )
+                        }
+                        maxLength={
+                          80
+                        }
                         placeholder="Ex.: Superior"
                       />
                     </label>
+
 
                     <label className="admin-field">
                       <span>
@@ -2532,14 +2849,21 @@ export function AdminApostilas() {
 
                       <input
                         type="text"
-                        value={form.updated}
-                        onChange={(event) =>
-                          updateField(
-                            "updated",
-                            event.target.value
-                          )
+                        value={
+                          form.updated
                         }
-                        maxLength={100}
+                        onChange={
+                          (
+                            event
+                          ) =>
+                            updateField(
+                              "updated",
+                              event.target.value
+                            )
+                        }
+                        maxLength={
+                          100
+                        }
                         placeholder="Ex.: Atualizado para o edital 2026"
                       />
                     </label>
@@ -3051,7 +3375,117 @@ export function AdminApostilas() {
                 <section className="admin-form-section">
                   <header>
                     <h3>
-                      6. Arquivos
+                      6. SEO e compartilhamento
+                    </h3>
+
+                    <p>
+                      Personalize como esta apostila será
+                      apresentada em mecanismos de busca
+                      e compartilhamentos.
+                    </p>
+                  </header>
+
+
+                  <div className="admin-form-grid">
+                    <label className="admin-field span-2">
+                      <span>
+                        Título SEO
+                      </span>
+
+                      <input
+                        type="text"
+                        value={
+                          form.seoTitle
+                        }
+                        onChange={
+                          (
+                            event
+                          ) =>
+                            updateField(
+                              "seoTitle",
+                              event.target.value
+                            )
+                        }
+                        maxLength={
+                          70
+                        }
+                        placeholder={
+                          form.title ||
+                          "Apostila Transpetro Engenharia Naval"
+                        }
+                      />
+
+                      <small>
+                        {form.seoTitle.length}/70 caracteres.
+                        Se vazio, será utilizado o título da apostila.
+                      </small>
+                    </label>
+
+
+                    <label className="admin-field span-2">
+                      <span>
+                        Descrição SEO
+                      </span>
+
+                      <textarea
+                        rows={
+                          4
+                        }
+                        value={
+                          form.seoDescription
+                        }
+                        onChange={
+                          (
+                            event
+                          ) =>
+                            updateField(
+                              "seoDescription",
+                              event.target.value
+                            )
+                        }
+                        maxLength={
+                          180
+                        }
+                        placeholder="Descrição objetiva da apostila para resultados de busca."
+                      />
+
+                      <small>
+                        {form.seoDescription.length}/180 caracteres.
+                        Se vazia, será utilizada a descrição comercial.
+                      </small>
+                    </label>
+
+
+                    <div className="admin-seo-preview span-2">
+                      <span>
+                        PRÉVIA DO RESULTADO
+                      </span>
+
+                      <strong>
+                        {form.seoTitle ||
+                          form.title ||
+                          "Título da apostila"}
+                      </strong>
+
+                      <code>
+                        /apostilas/
+                        {form.slug ||
+                          "slug-da-apostila"}
+                      </code>
+
+                      <p>
+                        {form.seoDescription ||
+                          form.description ||
+                          "A descrição da apostila aparecerá aqui."}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="admin-form-section">
+                  <header>
+                    <h3>
+                      7. Arquivos
                     </h3>
 
                     <p>
@@ -3305,6 +3739,55 @@ export function AdminApostilas() {
                   )}
                 </section>
 
+                <AdminPublicationReadiness
+                  slug={
+                    form.slug
+                  }
+                  title={
+                    form.title
+                  }
+                  shortTitle={
+                    form.shortTitle
+                  }
+                  category={
+                    form.category
+                  }
+                  bank={
+                    form.bank
+                  }
+                  level={
+                    form.level
+                  }
+                  organization={
+                    form.organization
+                  }
+                  contestSlug={
+                    form.contestSlug
+                  }
+                  description={
+                    form.description
+                  }
+                  price={
+                    form.price
+                  }
+                  cover={
+                    editingProduct?.cover ??
+                    null
+                  }
+                  pdfPath={
+                    editingProduct?.pdfPath ??
+                    null
+                  }
+                  active={
+                    Boolean(
+                      editingProduct?.active
+                    )
+                  }
+                  publishedAt={
+                    editingProduct?.publishedAt ??
+                    null
+                  }
+                />
 
                 <aside className="admin-product-preview">
                   <span className="admin-section-kicker">

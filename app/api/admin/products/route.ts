@@ -31,6 +31,9 @@ import {
   validateAdminProductPatch,
 } from "../../../../lib/admin-product-validation";
 
+import {
+  getProductPublicationIssues,
+} from "../../../../lib/product-publication";
 
 function validationErrorResponse(
   error: AdminProductValidationError
@@ -289,7 +292,8 @@ export async function POST(
  * portanto propriedades arbitrárias nunca alcançam o ORM.
  */
 export async function PATCH(
-  request: NextRequest
+  request:
+    NextRequest
 ) {
   try {
     const authorization =
@@ -324,25 +328,9 @@ export async function PATCH(
       getDb();
 
 
-    /**
-     * A publicação possui uma regra de negócio
-     * server-side própria.
-     *
-     * A interface pode bloquear o botão, mas isso
-     * nunca será considerado uma barreira de segurança.
-     */
     const existingProduct =
       await db
-        .select({
-          id:
-            products.id,
-
-          cover:
-            products.cover,
-
-          pdfPath:
-            products.pdfPath,
-        })
+        .select()
         .from(
           products
         )
@@ -371,25 +359,83 @@ export async function PATCH(
     }
 
 
+    /**
+     * Estado final da apostila após o PATCH.
+     */
+    const nextProduct = {
+      ...existingProduct,
+      ...updates,
+    };
+
+
+    /**
+     * Se a apostila continuará publicada após
+     * esta alteração, ela precisa continuar
+     * atendendo todos os requisitos editoriais.
+     *
+     * Isso impede, por exemplo:
+     *
+     * produto ativo
+     *     ↓
+     * PATCH organization = null
+     *     ↓
+     * produto inválido continuar público
+     */
+    const willRemainPublished =
+      updates.active ===
+      undefined
+        ? existingProduct.active ===
+          true
+        : updates.active ===
+          true;
+
+
     if (
+      willRemainPublished
+    ) {
+      const issues =
+        getProductPublicationIssues(
+          nextProduct
+        );
+
+
+      if (
+        issues.length >
+        0
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "A apostila ainda não está pronta para publicação.",
+
+            issues,
+          },
+          {
+            status:
+              409,
+          }
+        );
+      }
+    }
+
+
+    const now =
+      new Date()
+        .toISOString();
+
+
+    /**
+     * publishedAt registra a primeira publicação
+     * explícita realizada pelo painel.
+     *
+     * Despublicar e publicar novamente não altera
+     * a data original.
+     */
+    const shouldRegisterFirstPublication =
       updates.active ===
         true &&
-      (
-        !existingProduct.cover ||
-        !existingProduct.pdfPath
-      )
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Não é possível publicar uma apostila sem capa e PDF.",
-        },
-        {
-          status:
-            409,
-        }
-      );
-    }
+      !existingProduct
+        .publishedAt;
 
 
     const result =
@@ -400,9 +446,17 @@ export async function PATCH(
         .set({
           ...updates,
 
+          ...(
+            shouldRegisterFirstPublication
+              ? {
+                  publishedAt:
+                    now,
+                }
+              : {}
+          ),
+
           updatedAt:
-            new Date()
-              .toISOString(),
+            now,
         })
         .where(
           eq(

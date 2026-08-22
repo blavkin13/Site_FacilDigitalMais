@@ -19,76 +19,89 @@ import type {
 } from "../../../lib/product-types";
 
 
-/**
- * A página de concurso precisa refletir imediatamente:
- *
- * - novas apostilas;
- * - produtos ativados;
- * - produtos desativados.
- *
- * Portanto, não deve ficar congelada no build.
- */
 export const dynamic =
   "force-dynamic";
 
 
 interface PageProps {
-  params: Promise<{
-    slug: string;
-  }>;
+  params:
+    Promise<{
+      slug:
+        string;
+    }>;
+}
+
+
+function humanizeContestSlug(
+  contestSlug:
+    string
+): string {
+  return contestSlug
+    .split(
+      "-"
+    )
+    .filter(
+      Boolean
+    )
+    .map(
+      (
+        word
+      ) =>
+        word
+          .charAt(
+            0
+          )
+          .toUpperCase() +
+        word.slice(
+          1
+        )
+    )
+    .join(
+      " "
+    );
 }
 
 
 /**
- * Obtém o nome comercial do concurso a partir dos
- * produtos vinculados.
+ * Desde a Fase 3D a organização é um campo
+ * editorial explícito.
  *
- * Exemplo:
- *
- * Transpetro — Contabilidade
- *
- * →
- *
- * Transpetro
- *
- * O fallback converte o slug para uma apresentação
- * legível caso um produto legado não siga esse padrão.
+ * O repository ainda preenche organization por
+ * fallback para produtos legados, preservando
+ * compatibilidade com materiais antigos.
  */
 function getContestName(
-  products: Product[],
-  contestSlug: string
+  products:
+    Product[],
+  contestSlug:
+    string
 ): string {
-  const firstProduct =
-    products[0];
+  const productWithOrganization =
+    products.find(
+      (
+        product
+      ) =>
+        Boolean(
+          product.organization
+            ?.trim()
+        )
+    );
 
 
-  if (firstProduct) {
-    const [
-      organization,
-    ] =
-      firstProduct.title.split(
-        /\s+[—–]\s+/
-      );
-
-
-    if (
-      organization?.trim()
-    ) {
-      return organization.trim();
-    }
+  if (
+    productWithOrganization
+      ?.organization
+      ?.trim()
+  ) {
+    return productWithOrganization
+      .organization
+      .trim();
   }
 
 
-  return contestSlug
-    .split("-")
-    .filter(Boolean)
-    .map(
-      (word) =>
-        word.charAt(0)
-          .toUpperCase() +
-        word.slice(1)
-    )
-    .join(" ");
+  return humanizeContestSlug(
+    contestSlug
+  );
 }
 
 
@@ -97,7 +110,8 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const {
     slug,
-  } = await params;
+  } =
+    await params;
 
 
   const products =
@@ -106,12 +120,9 @@ export async function generateMetadata({
     );
 
 
-  /**
-   * Concurso sem nenhuma apostila ativa não deve
-   * ser indexado.
-   */
   if (
-    products.length === 0
+    products.length ===
+    0
   ) {
     return {
       title:
@@ -121,8 +132,11 @@ export async function generateMetadata({
         "Não há apostilas disponíveis para este concurso.",
 
       robots: {
-        index: false,
-        follow: false,
+        index:
+          false,
+
+        follow:
+          false,
       },
     };
   }
@@ -135,16 +149,29 @@ export async function generateMetadata({
     );
 
 
-  return {
-    title:
-      `Apostilas para ${contestName}`,
+  const title =
+    `Apostilas para ${contestName}`;
 
-    description:
-      `Materiais completos e atualizados para o concurso ${contestName}.`,
+
+  const description =
+    `Materiais completos e atualizados para o concurso ${contestName}.`;
+
+
+  return {
+    title,
+
+    description,
+
+    robots: {
+      index:
+        true,
+
+      follow:
+        true,
+    },
 
     openGraph: {
-      title:
-        `Apostilas para ${contestName}`,
+      title,
 
       description:
         `Prepare-se para o concurso ${contestName} com materiais completos da Facil Digital+.`,
@@ -157,8 +184,7 @@ export async function generateMetadata({
       card:
         "summary",
 
-      title:
-        `Apostilas para ${contestName}`,
+      title,
 
       description:
         `Materiais completos para o concurso ${contestName}.`,
@@ -172,7 +198,8 @@ export default async function ContestPage({
 }: PageProps) {
   const {
     slug,
-  } = await params;
+  } =
+    await params;
 
 
   const products =
@@ -181,13 +208,9 @@ export default async function ContestPage({
     );
 
 
-  /**
-   * Como os concursos são derivados das apostilas
-   * publicadas, um slug sem produtos ativos não
-   * representa uma página pública válida.
-   */
   if (
-    products.length === 0
+    products.length ===
+    0
   ) {
     notFound();
   }

@@ -19,11 +19,9 @@
     "db:seed-orders": "tsx db/seed-orders.ts",
     "db:seed-simulations": "tsx db/seed-simulations.ts",
     "db:load-products": "tsx scripts/load-products.ts",
-
     "test:phase0:build": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase0-build.test.mjs",
     "test:phase0:db": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase0.test.mjs",
     "test:phase0": "npm run test:phase0:build && npm run test:phase0:db",
-
     "test:phase1": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/auth.test.mjs",
     "test:phase2": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2.test.mjs",
     "test:phase3": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3.test.mjs",
@@ -31,29 +29,25 @@
     "test:phase4": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4.test.mjs",
     "test:phase5": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase5.test.mjs",
     "test:phase6": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase6.test.mjs",
-
     "test:phase1-products:repo": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase1-products.test.mjs",
     "test:phase1-products:cli": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase1-loader-cli.test.mjs",
     "test:phase1-products": "npm run test:phase1-products:repo && npm run test:phase1-products:cli",
-
     "test:phase2a-storefront": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2a-storefront.test.mjs",
     "test:phase2b-product-page": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2b-product-page.test.mjs",
     "test:phase2c-contest": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2c-contest-page.test.mjs",
     "test:phase2d": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2d-single-source.test.mjs",
     "test:phase2e": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2e-database-isolation.test.mjs",
-
     "test:phase3a-admin": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3a-admin-products.test.mjs",
     "test:phase3b-admin-ui": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3b-admin-apostilas.test.mjs",
-
     "test:phase3c-upload": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3c-admin-upload.test.mjs",
     "test:phase3c-integration": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3c-admin-integration.test.mjs",
     "test:phase3c": "npm run test:phase3c-upload && npm run test:phase3c-integration",
-
     "test:production-build": "rm -rf .next && next build",
-
-    "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:phase3b-admin-ui test:phase3c test:production-build",
-
-    "validate": "node scripts/validate-all.mjs"
+    "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:phase3b-admin-ui test:phase3c test:phase3d test:production-build",
+    "validate": "node scripts/validate-all.mjs",
+    "test:phase3d-foundation": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3d-publication-foundation.test.mjs",
+    "test:phase3d-ui": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3d-admin-seo.test.mjs",
+    "test:phase3d": "npm run test:phase3d-foundation && npm run test:phase3d-ui"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

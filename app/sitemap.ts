@@ -7,13 +7,164 @@ import {
   getActiveProducts,
 } from "@/lib/product-repository";
 
+import type {
+  Product,
+} from "@/lib/product-types";
 
-/**
- * O sitemap precisa refletir novos produtos e concursos
- * publicados no painel administrativo sem exigir rebuild.
- */
+
 export const dynamic =
   "force-dynamic";
+
+
+function normalizeDate(
+  value:
+    string | null | undefined,
+  fallback:
+    string
+): string {
+  if (
+    !value
+  ) {
+    return fallback;
+  }
+
+
+  const parsed =
+    new Date(
+      value
+    );
+
+
+  if (
+    Number.isNaN(
+      parsed.getTime()
+    )
+  ) {
+    return fallback;
+  }
+
+
+  return parsed
+    .toISOString();
+}
+
+
+function getProductLastModified(
+  product:
+    Product,
+  fallback:
+    string
+): string {
+  const candidates = [
+    product.publishedAt,
+    product.updatedAt,
+  ]
+    .filter(
+      (
+        value
+      ): value is string =>
+        Boolean(
+          value
+        )
+    )
+    .map(
+      (
+        value
+      ) =>
+        new Date(
+          value
+        )
+    )
+    .filter(
+      (
+        date
+      ) =>
+        !Number.isNaN(
+          date.getTime()
+        )
+    );
+
+
+  if (
+    candidates.length ===
+    0
+  ) {
+    return fallback;
+  }
+
+
+  const latest =
+    candidates.reduce(
+      (
+        current,
+        candidate
+      ) =>
+        candidate.getTime() >
+        current.getTime()
+          ? candidate
+          : current
+    );
+
+
+  return latest
+    .toISOString();
+}
+
+
+function getContestLastModified(
+  contestSlug:
+    string,
+  products:
+    Product[],
+  fallback:
+    string
+): string {
+  const related =
+    products.filter(
+      (
+        product
+      ) =>
+        product.contestSlug ===
+        contestSlug
+    );
+
+
+  if (
+    related.length ===
+    0
+  ) {
+    return fallback;
+  }
+
+
+  const dates =
+    related.map(
+      (
+        product
+      ) =>
+        getProductLastModified(
+          product,
+          fallback
+        )
+    );
+
+
+  return dates
+    .reduce(
+      (
+        latest,
+        candidate
+      ) =>
+        new Date(
+          candidate
+        ).getTime() >
+        new Date(
+          latest
+        ).getTime()
+          ? candidate
+          : latest
+    );
+}
 
 
 export default async function sitemap(): Promise<
@@ -30,13 +181,10 @@ export default async function sitemap(): Promise<
 
 
   const currentDate =
-    new Date().toISOString();
+    new Date()
+      .toISOString();
 
 
-  /**
-   * Produtos e concursos são obtidos exclusivamente
-   * através da camada SQLite.
-   */
   const [
     products,
     contestSlugs,
@@ -122,19 +270,20 @@ export default async function sitemap(): Promise<
     ];
 
 
-  /**
-   * Somente produtos ativos são retornados por
-   * getActiveProducts().
-   */
   const productRoutes:
     MetadataRoute.Sitemap =
     products.map(
-      (product) => ({
+      (
+        product
+      ) => ({
         url:
           `${baseUrl}/apostilas/${product.slug}`,
 
         lastModified:
-          currentDate,
+          getProductLastModified(
+            product,
+            currentDate
+          ),
 
         changeFrequency:
           "weekly",
@@ -145,21 +294,21 @@ export default async function sitemap(): Promise<
     );
 
 
-  /**
-   * Concursos deixam de ser uma lista fixa.
-   *
-   * Eles são derivados dos produtos ativos atualmente
-   * existentes no SQLite.
-   */
   const contestRoutes:
     MetadataRoute.Sitemap =
     contestSlugs.map(
-      (contestSlug) => ({
+      (
+        contestSlug
+      ) => ({
         url:
           `${baseUrl}/concurso/${contestSlug}`,
 
         lastModified:
-          currentDate,
+          getContestLastModified(
+            contestSlug,
+            products,
+            currentDate
+          ),
 
         changeFrequency:
           "weekly",

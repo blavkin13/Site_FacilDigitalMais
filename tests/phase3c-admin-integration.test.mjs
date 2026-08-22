@@ -96,7 +96,9 @@ describe(
   "Fase 3C-B - Integração administrativa de arquivos",
   () => {
     let isolated;
+
     let adminToken;
+
     let productsRoute;
 
 
@@ -332,9 +334,55 @@ describe(
           await publishResponse.json();
 
 
+        /**
+         * A Fase 3D ampliou a regra de publicação.
+         *
+         * Em vez de uma mensagem específica apenas
+         * para capa/PDF, a API retorna uma mensagem
+         * geral e uma lista estruturada de requisitos
+         * pendentes.
+         */
         assert.match(
           error.error,
-          /capa e PDF/i
+          /não está pronta para publicação/i
+        );
+
+
+        assert.ok(
+          Array.isArray(
+            error.issues
+          ),
+          "Resposta deve informar requisitos pendentes"
+        );
+
+
+        const issueFields =
+          error.issues.map(
+            (
+              issue
+            ) =>
+              issue.field
+          );
+
+
+        /**
+         * O objetivo histórico da Fase 3C continua
+         * garantido: sem capa e PDF não existe
+         * publicação.
+         */
+        assert.ok(
+          issueFields.includes(
+            "cover"
+          ),
+          "Capa ausente deve impedir publicação"
+        );
+
+
+        assert.ok(
+          issueFields.includes(
+            "pdfPath"
+          ),
+          "PDF ausente deve impedir publicação"
         );
       }
     );
