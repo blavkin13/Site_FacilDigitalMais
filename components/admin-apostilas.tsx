@@ -2386,6 +2386,667 @@ export function AdminApostilas() {
                   </div>
                 )}
 
+                <section className="admin-form-section">
+                  <header>
+                    <h3>
+                      1. Identificação
+                    </h3>
+
+                    <p>
+                      Defina o nome do rascunho e as
+                      informações principais da apostila.
+                    </p>
+                  </header>
+
+                  <div className="admin-form-grid">
+                    <label className="admin-field span-2">
+                      <span>
+                        Nome / título da apostila *
+                      </span>
+
+                      <input
+                        type="text"
+                        value={form.title}
+                        onChange={(event) =>
+                          updateTitle(
+                            event.target.value
+                          )
+                        }
+                        maxLength={180}
+                        placeholder="Ex.: Transpetro — Engenharia Naval"
+                        required
+                        autoFocus
+                      />
+
+                      <small>
+                        Este nome identifica o rascunho e será
+                        exibido no catálogo quando a apostila
+                        for publicada.
+                      </small>
+                    </label>
+
+                    <label className="admin-field">
+                      <span>
+                        Slug *
+                      </span>
+
+                      <input
+                        type="text"
+                        value={form.slug}
+                        onChange={(event) =>
+                          updateSlug(
+                            event.target.value
+                          )
+                        }
+                        maxLength={120}
+                        required
+                      />
+
+                      <small>
+                        URL: /apostilas/
+                        {form.slug ||
+                          "slug-da-apostila"}
+                      </small>
+                    </label>
+
+                    <label className="admin-field">
+                      <span>
+                        Título curto
+                      </span>
+
+                      <input
+                        type="text"
+                        value={form.shortTitle}
+                        onChange={(event) =>
+                          updateField(
+                            "shortTitle",
+                            event.target.value
+                          )
+                        }
+                        maxLength={120}
+                        placeholder="Ex.: Engenharia Naval"
+                      />
+                    </label>
+
+                    <label className="admin-field">
+                      <span>
+                        Categoria
+                      </span>
+
+                      <input
+                        type="text"
+                        value={form.category}
+                        onChange={(event) =>
+                          updateField(
+                            "category",
+                            event.target.value
+                          )
+                        }
+                        maxLength={100}
+                        placeholder="Ex.: Estatais"
+                      />
+                    </label>
+
+                    <label className="admin-field">
+                      <span>
+                        Banca
+                      </span>
+
+                      <input
+                        type="text"
+                        value={form.bank}
+                        onChange={(event) =>
+                          updateField(
+                            "bank",
+                            event.target.value
+                          )
+                        }
+                        maxLength={100}
+                        placeholder="Ex.: Cesgranrio"
+                      />
+                    </label>
+
+                    <label className="admin-field">
+                      <span>
+                        Nível
+                      </span>
+
+                      <input
+                        type="text"
+                        value={form.level}
+                        onChange={(event) =>
+                          updateField(
+                            "level",
+                            event.target.value
+                          )
+                        }
+                        maxLength={80}
+                        placeholder="Ex.: Superior"
+                      />
+                    </label>
+
+                    <label className="admin-field">
+                      <span>
+                        Atualização editorial
+                      </span>
+
+                      <input
+                        type="text"
+                        value={form.updated}
+                        onChange={(event) =>
+                          updateField(
+                            "updated",
+                            event.target.value
+                          )
+                        }
+                        maxLength={100}
+                        placeholder="Ex.: Atualizado para o edital 2026"
+                      />
+                    </label>
+                  </div>
+                </section>
+
+
+                <section className="admin-form-section">
+                  <header>
+                    <h3>
+                      2. Conteúdo e preço
+                    </h3>
+
+                    <p>
+                      Informe o volume do material e os valores
+                      comerciais.
+                    </p>
+                  </header>
+
+                  <div className="admin-form-grid admin-form-grid-3">
+                    <label className="admin-field">
+                      <span>
+                        Páginas
+                      </span>
+
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={form.pages}
+                        onChange={(event) =>
+                          updateField(
+                            "pages",
+                            event.target.value
+                          )
+                        }
+                        placeholder="0"
+                      />
+                    </label>
+
+                    <label className="admin-field">
+                      <span>
+                        Questões
+                      </span>
+
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={form.questions}
+                        onChange={(event) =>
+                          updateField(
+                            "questions",
+                            event.target.value
+                          )
+                        }
+                        placeholder="0"
+                      />
+                    </label>
+
+                    <label className="admin-field">
+                      <span>
+                        Preço anterior
+                      </span>
+
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.oldPrice}
+                        onChange={(event) =>
+                          updateField(
+                            "oldPrice",
+                            event.target.value
+                          )
+                        }
+                        placeholder="129.90"
+                      />
+                    </label>
+
+                    <label className="admin-field">
+                      <span>
+                        Preço *
+                      </span>
+
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={form.price}
+                        onChange={(event) =>
+                          updateField(
+                            "price",
+                            event.target.value
+                          )
+                        }
+                        placeholder="79.90"
+                        required
+                      />
+                    </label>
+
+                    <label className="admin-field">
+                      <span>
+                        Preço PIX
+                      </span>
+
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.pixPrice}
+                        onChange={(event) =>
+                          updateField(
+                            "pixPrice",
+                            event.target.value
+                          )
+                        }
+                        placeholder="75.90"
+                      />
+                    </label>
+
+                    <label className="admin-field">
+                      <span>
+                        Classe visual legada
+                      </span>
+
+                      <input
+                        type="text"
+                        value={form.coverClass}
+                        onChange={(event) =>
+                          updateField(
+                            "coverClass",
+                            event.target.value
+                          )
+                        }
+                        maxLength={80}
+                      />
+
+                      <small>
+                        Campo de compatibilidade visual.
+                      </small>
+                    </label>
+                  </div>
+                </section>
+
+
+                <section className="admin-form-section">
+                  <header>
+                    <h3>
+                      3. Apresentação
+                    </h3>
+
+                    <p>
+                      Textos comerciais apresentados ao candidato
+                      na página da apostila.
+                    </p>
+                  </header>
+
+                  <div className="admin-form-grid">
+                    <label className="admin-field span-2">
+                      <span>
+                        Chamada principal
+                      </span>
+
+                      <textarea
+                        rows={3}
+                        value={form.kicker}
+                        onChange={(event) =>
+                          updateField(
+                            "kicker",
+                            event.target.value
+                          )
+                        }
+                        maxLength={600}
+                        placeholder="Mensagem de destaque da apostila..."
+                      />
+                    </label>
+
+                    <label className="admin-field span-2">
+                      <span>
+                        Descrição
+                      </span>
+
+                      <textarea
+                        rows={6}
+                        value={form.description}
+                        onChange={(event) =>
+                          updateField(
+                            "description",
+                            event.target.value
+                          )
+                        }
+                        maxLength={5000}
+                        placeholder="Descreva o conteúdo, objetivo e benefícios do material."
+                      />
+                    </label>
+
+                    <label className="admin-field span-2">
+                      <span>
+                        Destaques
+                      </span>
+
+                      <textarea
+                        rows={6}
+                        value={form.highlights}
+                        onChange={(event) =>
+                          updateField(
+                            "highlights",
+                            event.target.value
+                          )
+                        }
+                        placeholder={
+                          "Um destaque por linha\nConteúdo atualizado\nQuestões comentadas\nMaterial completo"
+                        }
+                      />
+
+                      <small>
+                        Informe um destaque por linha.
+                      </small>
+                    </label>
+
+                    <label className="admin-field span-2">
+                      <span>
+                        Link Mercado Pago
+                      </span>
+
+                      <input
+                        type="url"
+                        value={form.mpLink}
+                        onChange={(event) =>
+                          updateField(
+                            "mpLink",
+                            event.target.value
+                          )
+                        }
+                        placeholder="https://..."
+                      />
+
+                      <small>
+                        Quando informado, deve utilizar HTTPS.
+                      </small>
+                    </label>
+                  </div>
+                </section>
+
+
+                <section className="admin-form-section">
+                  <header className="admin-form-section-header-actions">
+                    <div>
+                      <h3>
+                        4. Conteúdo programático
+                      </h3>
+
+                      <p>
+                        Cadastre disciplinas, número de páginas,
+                        questões e tópicos.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="button button-ghost"
+                      onClick={
+                        addSyllabusItem
+                      }
+                    >
+                      + Adicionar disciplina
+                    </button>
+                  </header>
+
+                  {form.syllabus.length ===
+                  0 ? (
+                    <div className="syllabus-empty">
+                      Nenhuma disciplina cadastrada.
+                    </div>
+                  ) : (
+                    <div className="syllabus-admin-list">
+                      {form.syllabus.map(
+                        (
+                          item,
+                          index
+                        ) => (
+                          <article
+                            className="syllabus-admin-item"
+                            key={index}
+                          >
+                            <header>
+                              <strong>
+                                Disciplina{" "}
+                                {index + 1}
+                              </strong>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeSyllabusItem(
+                                    index
+                                  )
+                                }
+                              >
+                                Remover
+                              </button>
+                            </header>
+
+                            <div className="admin-form-grid admin-form-grid-3">
+                              <label className="admin-field span-2">
+                                <span>
+                                  Disciplina
+                                </span>
+
+                                <input
+                                  type="text"
+                                  value={
+                                    item.title
+                                  }
+                                  onChange={(
+                                    event
+                                  ) =>
+                                    updateSyllabusItem(
+                                      index,
+                                      "title",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Ex.: Língua Portuguesa"
+                                />
+                              </label>
+
+                              <label className="admin-field">
+                                <span>
+                                  Páginas
+                                </span>
+
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={
+                                    item.pages
+                                  }
+                                  onChange={(
+                                    event
+                                  ) =>
+                                    updateSyllabusItem(
+                                      index,
+                                      "pages",
+                                      event.target.value
+                                    )
+                                  }
+                                />
+                              </label>
+
+                              <label className="admin-field">
+                                <span>
+                                  Questões
+                                </span>
+
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={
+                                    item.questions
+                                  }
+                                  onChange={(
+                                    event
+                                  ) =>
+                                    updateSyllabusItem(
+                                      index,
+                                      "questions",
+                                      event.target.value
+                                    )
+                                  }
+                                />
+                              </label>
+
+                              <label className="admin-field span-2">
+                                <span>
+                                  Tópicos
+                                </span>
+
+                                <textarea
+                                  rows={5}
+                                  value={
+                                    item.topics
+                                  }
+                                  onChange={(
+                                    event
+                                  ) =>
+                                    updateSyllabusItem(
+                                      index,
+                                      "topics",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder={
+                                    "Um tópico por linha\nInterpretação de textos\nGramática\nRedação"
+                                  }
+                                />
+
+                                <small>
+                                  Informe um tópico por linha.
+                                </small>
+                              </label>
+                            </div>
+                          </article>
+                        )
+                      )}
+                    </div>
+                  )}
+                </section>
+
+
+                <section className="admin-form-section">
+                  <header>
+                    <h3>
+                      5. Depoimento
+                    </h3>
+
+                    <p>
+                      Campo opcional. Caso utilize um depoimento,
+                      preencha os quatro campos.
+                    </p>
+                  </header>
+
+                  <div className="admin-form-grid">
+                    <label className="admin-field">
+                      <span>
+                        Nome
+                      </span>
+
+                      <input
+                        type="text"
+                        value={
+                          form.testimonialName
+                        }
+                        onChange={(event) =>
+                          updateField(
+                            "testimonialName",
+                            event.target.value
+                          )
+                        }
+                        placeholder="Nome do aluno"
+                      />
+                    </label>
+
+                    <label className="admin-field">
+                      <span>
+                        Identificação
+                      </span>
+
+                      <input
+                        type="text"
+                        value={
+                          form.testimonialRole
+                        }
+                        onChange={(event) =>
+                          updateField(
+                            "testimonialRole",
+                            event.target.value
+                          )
+                        }
+                        placeholder="Ex.: Aprovado"
+                      />
+                    </label>
+
+                    <label className="admin-field span-2">
+                      <span>
+                        Depoimento
+                      </span>
+
+                      <textarea
+                        rows={4}
+                        value={
+                          form.testimonialQuote
+                        }
+                        onChange={(event) =>
+                          updateField(
+                            "testimonialQuote",
+                            event.target.value
+                          )
+                        }
+                        placeholder="Texto do depoimento..."
+                      />
+                    </label>
+
+                    <label className="admin-field">
+                      <span>
+                        Resultado / destaque
+                      </span>
+
+                      <input
+                        type="text"
+                        value={
+                          form.testimonialScore
+                        }
+                        onChange={(event) =>
+                          updateField(
+                            "testimonialScore",
+                            event.target.value
+                          )
+                        }
+                        placeholder="Ex.: 92% de acertos"
+                      />
+                    </label>
+                  </div>
+                </section>
 
                 <section className="admin-form-section">
                   <header>

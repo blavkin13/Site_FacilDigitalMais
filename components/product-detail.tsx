@@ -6,39 +6,27 @@ import {
 
 import Link from "next/link";
 
+import {
+  formatPrice,
+} from "../lib/currency";
+
 import type {
   Product,
 } from "../lib/product-types";
 
 import {
-  useShop,
-} from "./shop-provider";
-
-import {
   ProductCard,
 } from "./product-card";
+
+import {
+  useShop,
+} from "./shop-provider";
 
 
 interface ProductDetailProps {
   product: Product;
 
   relatedProducts: Product[];
-}
-
-
-function formatPrice(
-  value: number
-): string {
-  return value.toLocaleString(
-    "pt-BR",
-    {
-      style:
-        "currency",
-
-      currency:
-        "BRL",
-    }
-  );
 }
 
 
@@ -53,19 +41,6 @@ export function ProductDetail({
 
 
   const [
-    plan,
-    setPlan,
-  ] =
-    useState<
-      | "digital"
-      | "impresso"
-      | "combo"
-    >(
-      "combo"
-    );
-
-
-  const [
     preview,
     setPreview,
   ] =
@@ -74,13 +49,41 @@ export function ProductDetail({
     );
 
 
-  const planPrice =
-    plan === "digital"
-      ? product.price
-      : plan ===
-          "impresso"
-        ? product.price + 50
-        : product.price + 30;
+  const hasPixDiscount =
+    product.pixPrice > 0 &&
+    product.pixPrice <
+      product.price;
+
+
+  const hasOldPrice =
+    product.oldPrice > 0 &&
+    product.oldPrice >
+      product.price;
+
+
+  const hasTestimonial =
+    Boolean(
+      product.testimonial.name ||
+      product.testimonial.quote ||
+      product.testimonial.score
+    );
+
+
+  function addProductToCart() {
+    add({
+      ...product,
+
+      /**
+       * O preço comercial cadastrado no SQLite é
+       * a única fonte de verdade para o carrinho.
+       *
+       * Não adicionamos valores artificiais por
+       * "plano", combo ou formato.
+       */
+      price:
+        product.price,
+    });
+  }
 
 
   return (
@@ -149,13 +152,17 @@ export function ProductDetail({
           Início
         </Link>
 
-        <span>›</span>
+        <span>
+          ›
+        </span>
 
         <Link href="/apostilas">
           Apostilas
         </Link>
 
-        <span>›</span>
+        <span>
+          ›
+        </span>
 
         <b>
           {product.shortTitle}
@@ -183,13 +190,12 @@ export function ProductDetail({
                 </small>
 
                 <strong>
-                  {
-                    product.shortTitle
-                  }
+                  {product.shortTitle}
                 </strong>
 
                 <i>
-                  {product.bank} •{" "}
+                  {product.bank}
+                  {" • "}
                   {product.level}
                 </i>
               </div>
@@ -205,7 +211,7 @@ export function ProductDetail({
                   )
               }
             >
-              ▣ Ver prévia de 12 páginas
+              ▣ Ver prévia do material
             </button>
           </div>
 
@@ -220,10 +226,12 @@ export function ProductDetail({
                 {product.level}
               </span>
 
-              <span>
-                Atualizada{" "}
-                {product.updated}
-              </span>
+              {product.updated && (
+                <span>
+                  Atualizada{" "}
+                  {product.updated}
+                </span>
+              )}
             </div>
 
 
@@ -232,9 +240,11 @@ export function ProductDetail({
             </h1>
 
 
-            <p className="product-kicker">
-              {product.kicker}
-            </p>
+            {product.kicker && (
+              <p className="product-kicker">
+                {product.kicker}
+              </p>
+            )}
 
 
             <div className="product-social-rating">
@@ -252,25 +262,28 @@ export function ProductDetail({
             </div>
 
 
-            <ul className="hero-highlights">
-              {product.highlights.map(
-                (
-                  highlight
-                ) => (
-                  <li
-                    key={
-                      highlight
-                    }
-                  >
-                    <span>
-                      ✓
-                    </span>
+            {product.highlights.length >
+              0 && (
+              <ul className="hero-highlights">
+                {product.highlights.map(
+                  (
+                    highlight
+                  ) => (
+                    <li
+                      key={
+                        highlight
+                      }
+                    >
+                      <span>
+                        ✓
+                      </span>
 
-                    {highlight}
-                  </li>
-                )
-              )}
-            </ul>
+                      {highlight}
+                    </li>
+                  )
+                )}
+              </ul>
+            )}
 
 
             <div className="purchase-card">
@@ -281,20 +294,23 @@ export function ProductDetail({
 
               <div className="price-row">
                 <div>
-                  <del>
-                    {formatPrice(
-                      product.oldPrice
-                    )}
-                  </del>
+                  {hasOldPrice && (
+                    <del>
+                      {formatPrice(
+                        product.oldPrice
+                      )}
+                    </del>
+                  )}
 
                   <strong>
                     {formatPrice(
-                      planPrice
+                      product.price
                     )}
                   </strong>
 
                   <small>
-                    à vista ou em até 12x
+                    à vista ou conforme condições
+                    disponíveis no checkout
                   </small>
                 </div>
 
@@ -306,13 +322,14 @@ export function ProductDetail({
 
                   <b>
                     {formatPrice(
-                      planPrice *
-                        0.95
+                      product.pixPrice
                     )}
                   </b>
 
                   <small>
-                    5% de desconto
+                    {hasPixDiscount
+                      ? "preço especial no PIX"
+                      : "pagamento via PIX"}
                   </small>
                 </div>
               </div>
@@ -322,17 +339,13 @@ export function ProductDetail({
                 type="button"
                 className="button button-accent buy-main"
                 onClick={
-                  () =>
-                    add({
-                      ...product,
-
-                      price:
-                        planPrice,
-                    })
+                  addProductToCart
                 }
               >
                 Quero começar agora{" "}
-                <span>→</span>
+                <span>
+                  →
+                </span>
               </button>
 
 
@@ -366,12 +379,14 @@ export function ProductDetail({
           </a>
 
           <a href="#planos">
-            Planos
+            Acesso
           </a>
 
-          <a href="#depoimento">
-            Depoimento
-          </a>
+          {hasTestimonial && (
+            <a href="#depoimento">
+              Depoimento
+            </a>
+          )}
 
           <a href="#faq-produto">
             Dúvidas
@@ -403,7 +418,9 @@ export function ProductDetail({
 
         <div className="feature-list">
           <article>
-            <b>01</b>
+            <b>
+              01
+            </b>
 
             <div>
               <h3>
@@ -411,15 +428,18 @@ export function ProductDetail({
               </h3>
 
               <p>
-                Conteúdo aprofundado, linguagem clara e
-                exemplos que conectam os conceitos.
+                Conteúdo aprofundado, linguagem
+                clara e exemplos que conectam os
+                conceitos.
               </p>
             </div>
           </article>
 
 
           <article>
-            <b>02</b>
+            <b>
+              02
+            </b>
 
             <div>
               <h3>
@@ -427,15 +447,18 @@ export function ProductDetail({
               </h3>
 
               <p>
-                Seleção comentada no estilo da banca, com
-                análise das alternativas.
+                Seleção comentada no estilo da
+                banca, com análise das
+                alternativas.
               </p>
             </div>
           </article>
 
 
           <article>
-            <b>03</b>
+            <b>
+              03
+            </b>
 
             <div>
               <h3>
@@ -443,8 +466,8 @@ export function ProductDetail({
               </h3>
 
               <p>
-                Quadros, alertas e sínteses para acelerar a
-                retomada do conteúdo.
+                Quadros, alertas e sínteses para
+                acelerar a retomada do conteúdo.
               </p>
             </div>
           </article>
@@ -486,11 +509,7 @@ export function ProductDetail({
 
               <span>
                 <b>
-                  {
-                    product
-                      .syllabus
-                      .length
-                  }
+                  {product.syllabus.length}
                 </b>{" "}
                 disciplinas
               </span>
@@ -499,70 +518,79 @@ export function ProductDetail({
 
 
           <div className="syllabus-list">
-            {product.syllabus.map(
-              (
-                item,
-                index
-              ) => (
-                <details
-                  key={
-                    item.title
-                  }
-                  open={
-                    index === 0
-                  }
-                >
-                  <summary>
-                    <span>
-                      {String(
-                        index +
-                          1
-                      ).padStart(
-                        2,
-                        "0"
-                      )}
-                    </span>
+            {product.syllabus.length >
+            0 ? (
+              product.syllabus.map(
+                (
+                  item,
+                  index
+                ) => (
+                  <details
+                    key={
+                      item.title
+                    }
+                    open={
+                      index ===
+                      0
+                    }
+                  >
+                    <summary>
+                      <span>
+                        {String(
+                          index +
+                            1
+                        ).padStart(
+                          2,
+                          "0"
+                        )}
+                      </span>
 
-                    <div>
-                      <strong>
-                        {
-                          item.title
-                        }
-                      </strong>
+                      <div>
+                        <strong>
+                          {item.title}
+                        </strong>
 
-                      <small>
-                        {
-                          item.pages
-                        }{" "}
-                        páginas •{" "}
-                        {
-                          item.questions
-                        }{" "}
-                        questões
-                      </small>
-                    </div>
+                        <small>
+                          {item.pages} páginas
+                          {" • "}
+                          {item.questions} questões
+                        </small>
+                      </div>
 
-                    <b>＋</b>
-                  </summary>
+                      <b>
+                        ＋
+                      </b>
+                    </summary>
 
-                  <ul>
-                    {item.topics.map(
-                      (
-                        topic
-                      ) => (
-                        <li
-                          key={
+
+                    {item.topics.length >
+                      0 && (
+                      <ul>
+                        {item.topics.map(
+                          (
                             topic
-                          }
-                        >
-                          ✓{" "}
-                          {topic}
-                        </li>
-                      )
+                          ) => (
+                            <li
+                              key={
+                                topic
+                              }
+                            >
+                              ✓{" "}
+                              {topic}
+                            </li>
+                          )
+                        )}
+                      </ul>
                     )}
-                  </ul>
-                </details>
+                  </details>
+                )
               )
+            ) : (
+              <div className="syllabus-empty">
+                O conteúdo programático detalhado
+                deste material será disponibilizado
+                em breve.
+              </div>
             )}
           </div>
         </div>
@@ -575,211 +603,131 @@ export function ProductDetail({
       >
         <div className="section-heading centered">
           <span className="eyebrow">
-            <i /> Escolha seu formato
+            <i /> Acesso ao material
           </span>
 
           <h2>
-            Seu material, do seu jeito.
+            Sua apostila digital completa.
           </h2>
 
           <p>
-            Todos os planos incluem atualização gratuita até
-            o próximo edital.
+            Após a confirmação do pagamento,
+            o material fica disponível na sua
+            conta para acesso e download
+            personalizado.
           </p>
         </div>
 
 
         <div className="plans-grid">
-          {[
-            {
-              id:
-                "digital",
-
-              name:
-                "Digital",
-
-              price:
-                product.price,
-
-              desc:
-                "PDF personalizado e protegido",
-
-              items: [
-                "Acesso imediato",
-                "Leitura online",
-                "Download com CPF",
-              ],
-            },
-
-            {
-              id:
-                "impresso",
-
-              name:
-                "Impresso",
-
-              price:
-                product.price +
-                50,
-
-              desc:
-                "Livro físico enviado para você",
-
-              items: [
-                "Acabamento premium",
-                "Frete calculado no checkout",
-                "Acesso ao PDF incluso",
-              ],
-            },
-
-            {
-              id:
-                "combo",
-
-              name:
-                "Combo aprovação",
-
-              price:
-                product.price +
-                30,
-
-              desc:
-                "Apostila + simulados da banca",
-
-              items: [
-                "PDF completo",
-                "3 simulados inéditos",
-                "Correção detalhada",
-              ],
-            },
-          ].map(
-            (
-              option
-            ) => (
-              <button
-                key={
-                  option.id
-                }
-                type="button"
-                onClick={
-                  () =>
-                    setPlan(
-                      option.id as typeof plan
-                    )
-                }
-                className={
-                  plan ===
-                  option.id
-                    ? "plan-card selected"
-                    : "plan-card"
-                }
-              >
-                <span>
-                  {option.id ===
-                  "combo"
-                    ? "MELHOR ESCOLHA"
-                    : option.name.toUpperCase()}
-                </span>
-
-                <h3>
-                  {option.name}
-                </h3>
-
-                <p>
-                  {option.desc}
-                </p>
-
-                <strong>
-                  {formatPrice(
-                    option.price
-                  )}
-                </strong>
-
-                <ul>
-                  {option.items.map(
-                    (
-                      item
-                    ) => (
-                      <li
-                        key={
-                          item
-                        }
-                      >
-                        ✓{" "}
-                        {item}
-                      </li>
-                    )
-                  )}
-                </ul>
-
-                <i>
-                  {plan ===
-                  option.id
-                    ? "Selecionado"
-                    : "Escolher plano"}
-                </i>
-              </button>
-            )
-          )}
-        </div>
-      </section>
-
-
-      <section
-        className="section testimonial-section"
-        id="depoimento"
-      >
-        <div className="container testimonial-grid">
-          <div className="testimonial-quote">
-            <span>“</span>
-
-            <blockquote>
-              {
-                product
-                  .testimonial
-                  .quote
-              }
-            </blockquote>
-
-            <p>
-              <strong>
-                {
-                  product
-                    .testimonial
-                    .name
-                }
-              </strong>
-
-              <small>
-                {
-                  product
-                    .testimonial
-                    .role
-                }
-              </small>
-            </p>
-          </div>
-
-
-          <div className="score-card">
+          <article className="plan-card selected">
             <span>
-              RESULTADO REAL
+              APOSTILA DIGITAL
             </span>
 
+            <h3>
+              PDF completo
+            </h3>
+
+            <p>
+              Material digital protegido e
+              vinculado à sua compra.
+            </p>
+
+            {hasOldPrice && (
+              <del>
+                {formatPrice(
+                  product.oldPrice
+                )}
+              </del>
+            )}
+
             <strong>
-              {
-                product
-                  .testimonial
-                  .score
-              }
+              {formatPrice(
+                product.price
+              )}
             </strong>
 
-            <small>
-              Relato fictício para demonstração visual.
-            </small>
-          </div>
+            {hasPixDiscount && (
+              <small>
+                PIX:{" "}
+                {formatPrice(
+                  product.pixPrice
+                )}
+              </small>
+            )}
+
+            <ul>
+              <li>
+                ✓ Acesso após confirmação
+                do pagamento
+              </li>
+
+              <li>
+                ✓ PDF completo
+              </li>
+
+              <li>
+                ✓ Identificação individual
+                do comprador
+              </li>
+
+              <li>
+                ✓ Acesso pela área do aluno
+              </li>
+            </ul>
+
+            <i>
+              Material disponível
+            </i>
+          </article>
         </div>
       </section>
+
+
+      {hasTestimonial && (
+        <section
+          className="section testimonial-section"
+          id="depoimento"
+        >
+          <div className="container testimonial-grid">
+            <div className="testimonial-quote">
+              <span>
+                “
+              </span>
+
+              <blockquote>
+                {product.testimonial.quote}
+              </blockquote>
+
+              <p>
+                <strong>
+                  {product.testimonial.name}
+                </strong>
+
+                {product.testimonial.role && (
+                  <small>
+                    {product.testimonial.role}
+                  </small>
+                )}
+              </p>
+            </div>
+
+
+            {product.testimonial.score && (
+              <div className="score-card">
+                <span>
+                  RESULTADO
+                </span>
+
+                <strong>
+                  {product.testimonial.score}
+                </strong>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
 
       <section
@@ -828,13 +776,16 @@ export function ProductDetail({
                   faq[0]
                 }
                 open={
-                  index === 0
+                  index ===
+                  0
                 }
               >
                 <summary>
                   {faq[0]}
 
-                  <b>＋</b>
+                  <b>
+                    ＋
+                  </b>
                 </summary>
 
                 <p>
@@ -858,7 +809,8 @@ export function ProductDetail({
                 </span>
 
                 <h2>
-                  Quem viu esta apostila também conheceu
+                  Quem viu esta apostila também
+                  conheceu
                 </h2>
               </div>
 
@@ -895,26 +847,30 @@ export function ProductDetail({
       <div className="mobile-buy-bar">
         <div>
           <small>
-            A partir de
+            Apostila digital
           </small>
 
           <strong>
             {formatPrice(
-              planPrice
+              product.price
             )}
           </strong>
+
+          {hasPixDiscount && (
+            <span>
+              PIX{" "}
+              {formatPrice(
+                product.pixPrice
+              )}
+            </span>
+          )}
         </div>
+
 
         <button
           type="button"
           onClick={
-            () =>
-              add({
-                ...product,
-
-                price:
-                  planPrice,
-              })
+            addProductToCart
           }
         >
           Comprar agora
@@ -935,6 +891,7 @@ export function ProductDetail({
           <div
             role="dialog"
             aria-modal="true"
+            aria-labelledby="product-preview-title"
             onMouseDown={
               (
                 event
@@ -945,15 +902,14 @@ export function ProductDetail({
             <header>
               <div>
                 <span>
-                  AMOSTRA GRATUITA
+                  PRÉVIA ILUSTRATIVA
                 </span>
 
-                <h2>
-                  {
-                    product.shortTitle
-                  }
+                <h2 id="product-preview-title">
+                  {product.shortTitle}
                 </h2>
               </div>
+
 
               <button
                 type="button"
@@ -972,49 +928,87 @@ export function ProductDetail({
 
             <div className="preview-paper">
               <small>
-                PÁGINA 04 • AMOSTRA
+                AMOSTRA VISUAL DO MATERIAL
               </small>
 
               <h3>
-                O que a banca costuma cobrar
+                O que você encontrará na apostila
               </h3>
 
               <p>
-                A preparação eficiente começa pela leitura
-                ativa do conteúdo, seguida de questões que
-                ajudam a reconhecer o padrão de cobrança da
-                banca.
+                Esta área apresenta uma demonstração
+                visual da experiência de leitura.
+                A prévia real das páginas do PDF será
+                habilitada posteriormente de forma
+                segura, sem expor o arquivo original
+                completo.
               </p>
+
 
               <div className="preview-callout">
                 <b>
-                  Dica estratégica
+                  Conteúdo protegido
                 </b>
 
                 <p>
-                  Marque conceitos recorrentes e registre o
-                  motivo de cada erro. Essa prática reduz a
-                  repetição de falhas.
+                  O PDF original permanece armazenado
+                  de forma privada. Após a compra,
+                  cada download é vinculado ao
+                  comprador.
                 </p>
               </div>
 
-              <p>
-                Esta visualização será substituída
-                posteriormente pelas páginas reais liberadas
-                pelo administrador.
-              </p>
+
+              {product.syllabus.length >
+                0 && (
+                <>
+                  <h3>
+                    Conteúdo programático
+                  </h3>
+
+                  <p>
+                    {product.syllabus
+                      .slice(
+                        0,
+                        3
+                      )
+                      .map(
+                        (
+                          item
+                        ) =>
+                          item.title
+                      )
+                      .join(
+                        " • "
+                      )}
+                  </p>
+                </>
+              )}
+
+
+              {product.description && (
+                <p>
+                  {product.description}
+                </p>
+              )}
             </div>
 
 
             <footer>
               <span>
-                4 / 12
+                Prévia ilustrativa
               </span>
 
               <button
                 type="button"
+                onClick={
+                  () =>
+                    setPreview(
+                      false
+                    )
+                }
               >
-                Próxima página →
+                Fechar
               </button>
             </footer>
           </div>
