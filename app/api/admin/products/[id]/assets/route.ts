@@ -34,7 +34,6 @@ import {
   removeManagedAssetReference,
   removeStoredAdminAsset,
   storeAdminProductAsset,
-  type AdminAssetKind,
 } from "../../../../../../lib/admin-product-storage";
 
 
@@ -47,6 +46,10 @@ type RouteContext = {
 };
 
 
+/**
+ * Converte erros conhecidos da camada de storage
+ * em respostas HTTP controladas.
+ */
 function storageErrorResponse(
   error:
     AdminProductStorageError
@@ -64,6 +67,10 @@ function storageErrorResponse(
 }
 
 
+/**
+ * Converte erros conhecidos de validação
+ * em resposta 400.
+ */
 function validationErrorResponse(
   error:
     AdminProductValidationError
@@ -84,6 +91,10 @@ function validationErrorResponse(
 }
 
 
+/**
+ * Extrai e valida o ID da apostila
+ * recebido na rota dinâmica.
+ */
 async function getProductId(
   context:
     RouteContext
@@ -98,6 +109,15 @@ async function getProductId(
 }
 
 
+/**
+ * Proteção preliminar baseada em Content-Length.
+ *
+ * A validação definitiva do tamanho do arquivo
+ * continua sendo executada pela camada de storage.
+ *
+ * Em produção, o Nginx também deverá impor
+ * client_max_body_size.
+ */
 function requestBodyTooLarge(
   request:
     NextRequest
@@ -124,20 +144,19 @@ function requestBodyTooLarge(
   if (
     !Number.isFinite(
       size
-    )
+    ) ||
+    size <
+      0
   ) {
     return false;
   }
 
 
   /**
-   * Margem adicional para os metadados do multipart.
+   * O maior arquivo permitido atualmente é o PDF.
    *
-   * O limite específico da capa/PDF continua sendo
-   * validado posteriormente pelo storage.
-   *
-   * Em produção o Nginx também receberá um
-   * client_max_body_size apropriado.
+   * Reservamos 1 MB adicional para boundary e
+   * metadados multipart.
    */
   return (
     size >
@@ -157,6 +176,14 @@ function requestBodyTooLarge(
  *
  *   kind = cover | pdf
  *   file = arquivo
+ *
+ * Estratégia de consistência:
+ *
+ * 1. arquivo novo é validado e salvo;
+ * 2. banco passa a apontar para o arquivo novo;
+ * 3. somente depois o arquivo anterior é removido;
+ * 4. falha na limpeza antiga NÃO remove o arquivo
+ *    já referenciado pelo banco.
  */
 export async function POST(
   request:
@@ -164,6 +191,19 @@ export async function POST(
   context:
     RouteContext
 ) {
+  /**
+   * Enquanto esta variável possuir um asset,
+   * significa que ele ainda não foi assumido
+   * definitivamente pelo banco.
+   *
+   * O catch externo poderá removê-lo.
+   *
+   * Depois do commit lógico:
+   *
+   * storedAsset = null
+   *
+   * e o catch não poderá apagar o arquivo novo.
+   */
   let storedAsset:
     Awaited<
       ReturnType<
@@ -300,6 +340,17 @@ export async function POST(
     }
 
 
+    /**
+     * A camada de storage executa:
+     *
+     * - extensão permitida;
+     * - MIME permitido;
+     * - magic bytes;
+     * - limite de tamanho;
+     * - nome aleatório;
+     * - proteção contra traversal;
+     * - gravação fora de public/.
+     */
     storedAsset =
       await storeAdminProductAsset(
         productId,
@@ -319,6 +370,10 @@ export async function POST(
 
 
     try {
+      /**
+       * O banco passa a apontar para o novo arquivo
+       * antes de tentarmos apagar o anterior.
+       */
       updatedProducts =
         await db
           .update(
@@ -350,23 +405,103 @@ export async function POST(
     } catch (
       databaseError
     ) {
-      await removeStoredAdminAsset(
-        storedAsset
-      );
+      /**
+       * O banco NÃO assumiu a referência.
+       *
+       * Nesse caso o arquivo recém-gravado deve ser
+       * removido para não virar órfão.
+       *
+       * Primeiro retiramos a responsabilidade do
+       * catch externo para não existir tentativa
+       * duplicada de remoção.
+       */
+      const uncommittedAsset =
+        storedAsset;
 
 
       storedAsset =
         null;
 
 
+      try {
+        await removeStoredAdminAsset(
+          uncommittedAsset
+        );
+      } catch (
+        cleanupError
+      ) {
+        /**
+         * A falha original continua sendo a falha
+         * do banco.
+         *
+         * Uma eventual falha de limpeza não deve
+         * mascarar databaseError.
+         */
+        console.error(
+          `Falha ao remover novo ${
+            kind ===
+            "cover"
+              ? "arquivo de capa"
+              : "PDF"
+          } após erro de banco da apostila ${productId}:`,
+          cleanupError
+        );
+      }
+
+
       throw databaseError;
     }
 
 
-    await removeManagedAssetReference(
-      kind,
-      previousReference
-    );
+    /**
+     * COMMIT LÓGICO.
+     *
+     * Neste ponto o banco já aponta para
+     * storedAsset.reference.
+     *
+     * Portanto o arquivo novo NÃO pode mais
+     * ser apagado pelo catch externo.
+     */
+    const committedAsset =
+      storedAsset;
+
+
+    storedAsset =
+      null;
+
+
+    /**
+     * Limpeza best-effort do arquivo anterior.
+     *
+     * Se unlink() falhar:
+     *
+     * - banco continua íntegro;
+     * - novo arquivo continua disponível;
+     * - arquivo antigo pode ficar órfão;
+     * - o erro é registrado;
+     * - a API continua retornando sucesso.
+     *
+     * Um órfão é preferível a deixar o banco
+     * apontando para um arquivo inexistente.
+     */
+    try {
+      await removeManagedAssetReference(
+        kind,
+        previousReference
+      );
+    } catch (
+      cleanupError
+    ) {
+      console.error(
+        `Falha ao limpar ${
+          kind ===
+          "cover"
+            ? "capa"
+            : "PDF"
+        } anterior da apostila ${productId}:`,
+        cleanupError
+      );
+    }
 
 
     return NextResponse.json(
@@ -380,23 +515,33 @@ export async function POST(
           updatedProducts[0],
 
         asset: {
+          /**
+           * Somente capas possuem URL pública.
+           *
+           * PDFs originais permanecem privados.
+           */
           url:
             kind ===
             "cover"
-              ? storedAsset.reference
+              ? committedAsset.reference
               : null,
 
           mimeType:
-            storedAsset.mimeType,
+            committedAsset.mimeType,
 
           size:
-            storedAsset.size,
+            committedAsset.size,
         },
       }
     );
   } catch (
     error
   ) {
+    /**
+     * Se storedAsset ainda estiver preenchido,
+     * significa que o banco nunca assumiu
+     * definitivamente aquela referência.
+     */
     if (
       storedAsset
     ) {
@@ -404,10 +549,20 @@ export async function POST(
         await removeStoredAdminAsset(
           storedAsset
         );
-      } catch {
+      } catch (
+        cleanupError
+      ) {
         /**
-         * A falha principal é preservada.
+         * A falha principal da requisição é
+         * preservada.
+         *
+         * O erro de limpeza fica registrado para
+         * futura manutenção.
          */
+        console.error(
+          "Falha ao limpar arquivo não confirmado após erro de upload:",
+          cleanupError
+        );
       }
     }
 
@@ -455,13 +610,21 @@ export async function POST(
 /**
  * DELETE
  *
- * Remove somente arquivos que pertencem ao armazenamento
- * gerenciado pela aplicação.
+ * Remove somente arquivos pertencentes ao
+ * armazenamento gerenciado pela aplicação.
  *
- * Arquivos legados não são apagados fisicamente.
+ * Arquivos legados não são apagados fisicamente
+ * por esta operação.
  *
- * Ao remover capa ou PDF a apostila também é
- * automaticamente despublicada.
+ * A remoção de capa ou PDF também despublica
+ * automaticamente a apostila.
+ *
+ * Estratégia:
+ *
+ * 1. retirar referência do banco;
+ * 2. despublicar;
+ * 3. tentar apagar o arquivo físico;
+ * 4. falha de unlink vira log, não rollback lógico.
  */
 export async function DELETE(
   request:
@@ -541,6 +704,12 @@ export async function DELETE(
         : product.pdfPath;
 
 
+    /**
+     * Banco primeiro.
+     *
+     * Se esta operação falhar, o arquivo permanece
+     * intacto e ainda referenciado.
+     */
     const result =
       await db
         .update(
@@ -558,6 +727,10 @@ export async function DELETE(
                   null,
               }),
 
+          /**
+           * Uma apostila sem capa ou sem PDF
+           * nunca permanece publicada.
+           */
           active:
             false,
 
@@ -574,10 +747,34 @@ export async function DELETE(
         .returning();
 
 
-    await removeManagedAssetReference(
-      kind,
-      previousReference
-    );
+    /**
+     * O banco já deixou de referenciar o arquivo.
+     *
+     * Uma falha física de unlink não deve fazer
+     * uma operação administrativa concluída
+     * responder HTTP 500.
+     *
+     * O eventual órfão poderá ser removido pela
+     * manutenção de armazenamento da 3E-B.
+     */
+    try {
+      await removeManagedAssetReference(
+        kind,
+        previousReference
+      );
+    } catch (
+      cleanupError
+    ) {
+      console.error(
+        `Falha ao limpar ${
+          kind ===
+          "cover"
+            ? "capa"
+            : "PDF"
+        } removido da apostila ${productId}:`,
+        cleanupError
+      );
+    }
 
 
     return NextResponse.json(

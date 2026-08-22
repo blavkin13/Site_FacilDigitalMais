@@ -484,21 +484,22 @@ export async function POST(
       expiresInHours:
         12,
 
-      protectedWith: {
-        watermark:
-          formatCpfDisplay(
-            user.cpf
-          ),
+            protectedWith: {
+              watermark:
+                formatCpfDisplay(
+                  user.cpf
+                ),
 
-        /**
-         * O fluxo legado ainda informa CPF como senha,
-         * embora pdf-lib atualmente aplique apenas
-         * watermark. A criptografia real será tratada
-         * no hardening final.
-         */
-        password:
-          "Seu CPF",
-      },
+              /**
+               * O PDF atualmente recebe marca d'água
+               * identificando o comprador.
+               *
+               * Não anunciamos proteção por senha porque
+               * pdf-lib não aplica criptografia ao arquivo.
+               */
+              passwordProtected:
+                false,
+            },
     });
   } catch (
     error

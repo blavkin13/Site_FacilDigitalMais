@@ -15,10 +15,6 @@ import {
 } from "node:fs/promises";
 
 import {
-  existsSync,
-} from "node:fs";
-
-import {
   isAbsolute,
   join,
   resolve,
@@ -27,6 +23,18 @@ import {
 import {
   randomBytes,
 } from "node:crypto";
+
+
+/**
+ * Tokens de download são gerados com:
+ *
+ * randomBytes(32).toString("hex")
+ *
+ * portanto possuem exatamente 64 caracteres
+ * hexadecimais.
+ */
+const DOWNLOAD_TOKEN_PATTERN =
+  /^[a-f0-9]{64}$/;
 
 
 /**
@@ -79,6 +87,10 @@ export function getProtectedPdfDirectory(): string {
 }
 
 
+/**
+ * Garante a existência do diretório privado
+ * utilizado pelos PDFs temporários.
+ */
 async function ensureProtectedDir(): Promise<string> {
   const protectedDirectory =
     getProtectedPdfDirectory();
@@ -87,7 +99,18 @@ async function ensureProtectedDir(): Promise<string> {
   await mkdir(
     protectedDirectory,
     {
-      recursive: true,
+      recursive:
+        true,
+
+      /**
+       * Em sistemas POSIX:
+       *
+       * proprietário → leitura/escrita/execução
+       * grupo        → leitura/execução
+       * outros       → nenhum acesso
+       */
+      mode:
+        0o750,
     }
   );
 
@@ -97,10 +120,71 @@ async function ensureProtectedDir(): Promise<string> {
 
 
 /**
+ * Resolve o arquivo temporário exclusivamente
+ * através do token completo.
+ *
+ * Não utilizamos:
+ *
+ * - nome informado pelo cliente;
+ * - prefixo do token;
+ * - busca parcial em diretório;
+ * - concatenação de caminho arbitrária.
+ */
+function protectedPdfPathFromToken(
+  directory:
+    string,
+  downloadToken:
+    string
+): string | null {
+  const normalizedToken =
+    downloadToken
+      .trim()
+      .toLowerCase();
+
+
+  if (
+    !DOWNLOAD_TOKEN_PATTERN.test(
+      normalizedToken
+    )
+  ) {
+    return null;
+  }
+
+
+  return join(
+    directory,
+    `protected_${normalizedToken}.pdf`
+  );
+}
+
+
+/**
+ * Identifica erros Node.js que possuem
+ * um determinado código.
+ */
+function isNodeErrorCode(
+  error:
+    unknown,
+  code:
+    string
+): boolean {
+  return (
+    error instanceof
+      Error &&
+    "code" in
+      error &&
+    error.code ===
+      code
+  );
+}
+
+
+/**
  * Validação de CPF.
  */
 export function validateCpf(
-  cpf: string
+  cpf:
+    string
 ): boolean {
   const cleanCpf =
     cpf.replace(
@@ -126,13 +210,17 @@ export function validateCpf(
   }
 
 
-  let sum = 0;
+  let sum =
+    0;
 
 
   for (
-    let index = 0;
-    index < 9;
-    index += 1
+    let index =
+      0;
+    index <
+      9;
+    index +=
+      1
   ) {
     sum +=
       Number(
@@ -154,9 +242,11 @@ export function validateCpf(
 
 
   if (
-    check1 === 10
+    check1 ===
+    10
   ) {
-    check1 = 0;
+    check1 =
+      0;
   }
 
 
@@ -170,13 +260,17 @@ export function validateCpf(
   }
 
 
-  sum = 0;
+  sum =
+    0;
 
 
   for (
-    let index = 0;
-    index < 10;
-    index += 1
+    let index =
+      0;
+    index <
+      10;
+    index +=
+      1
   ) {
     sum +=
       Number(
@@ -198,9 +292,11 @@ export function validateCpf(
 
 
   if (
-    check2 === 10
+    check2 ===
+    10
   ) {
-    check2 = 0;
+    check2 =
+      0;
   }
 
 
@@ -226,7 +322,8 @@ export function validateCpf(
  * 123.456.789-01
  */
 export function formatCpf(
-  cpf: string
+  cpf:
+    string
 ): string {
   const clean =
     cpf.replace(
@@ -260,17 +357,27 @@ export function formatCpf(
     clean.slice(
       9
     ),
-  ].join("");
+  ].join(
+    ""
+  );
 }
 
 
 /**
  * Insere identificação do comprador em todas
  * as páginas do PDF.
+ *
+ * O watermark atual utiliza o CPF do comprador.
+ *
+ * Esta proteção não substitui criptografia,
+ * DRM ou assinatura digital, mas permite
+ * rastreabilidade visual do material entregue.
  */
 export async function addWatermarkToPdf(
-  pdfBytes: Uint8Array,
-  cpf: string
+  pdfBytes:
+    Uint8Array,
+  cpf:
+    string
 ): Promise<Uint8Array> {
   const pdfDoc =
     await PDFDocument.load(
@@ -284,7 +391,8 @@ export async function addWatermarkToPdf(
 
   const font =
     await pdfDoc.embedFont(
-      StandardFonts.HelveticaBold
+      StandardFonts
+        .HelveticaBold
     );
 
 
@@ -295,7 +403,8 @@ export async function addWatermarkToPdf(
 
 
   for (
-    const page of pages
+    const page of
+      pages
   ) {
     const {
       width,
@@ -342,9 +451,15 @@ export async function addWatermarkToPdf(
     page.drawText(
       `Documento exclusivo - CPF: ${formattedCpf} - Facil Digital+`,
       {
-        x: 40,
-        y: 20,
-        size: 8,
+        x:
+          40,
+
+        y:
+          20,
+
+        size:
+          8,
+
         font,
 
         color:
@@ -366,15 +481,23 @@ export async function addWatermarkToPdf(
 
 
 /**
- * pdf-lib ainda não fornece criptografia de senha
+ * Compatibilidade temporária.
+ *
+ * pdf-lib não fornece criptografia de senha
  * nativamente.
  *
- * A etapa futura de segurança utilizará uma ferramenta
- * apropriada para criptografia real.
+ * Esta função NÃO deve ser interpretada como
+ * proteção real por senha.
+ *
+ * A criptografia verdadeira poderá ser adicionada
+ * posteriormente com qpdf ou ferramenta equivalente
+ * no ambiente de produção.
  */
 export async function protectPdfWithPassword(
-  pdfBytes: Uint8Array,
-  password: string
+  pdfBytes:
+    Uint8Array,
+  password:
+    string
 ): Promise<Uint8Array> {
   void password;
 
@@ -383,111 +506,114 @@ export async function protectPdfWithPassword(
 }
 
 
+/**
+ * Gera a versão temporária e identificada
+ * de uma apostila.
+ *
+ * Segurança:
+ *
+ * - exige CPF válido;
+ * - exige userId válido;
+ * - original precisa realmente existir;
+ * - original precisa ser um PDF estruturalmente válido;
+ * - não existe mais PDF fictício de fallback;
+ * - token possui 256 bits de entropia;
+ * - nome do arquivo depende do token completo;
+ * - escrita utiliza "wx", impedindo sobrescrita;
+ * - arquivo recebe permissão restritiva em POSIX;
+ * - expiração padrão de 12 horas.
+ */
 export async function generateProtectedPdf(
-  originalPdfPath: string,
-  userCpf: string,
-  userId: number
+  originalPdfPath:
+    string,
+  userCpf:
+    string,
+  userId:
+    number
 ): Promise<{
-  protectedPath: string;
-  downloadToken: string;
-  expiresAt: Date;
+  protectedPath:
+    string;
+
+  downloadToken:
+    string;
+
+  expiresAt:
+    Date;
 }> {
+  /**
+   * Defesa em profundidade.
+   *
+   * A rota HTTP já deve validar o CPF, mas
+   * esta função não depende exclusivamente
+   * do chamador.
+   */
+  if (
+    !validateCpf(
+      userCpf
+    )
+  ) {
+    throw new Error(
+      "CPF inválido para geração do PDF protegido."
+    );
+  }
+
+
+  if (
+    !Number.isSafeInteger(
+      userId
+    ) ||
+    userId <=
+      0
+  ) {
+    throw new Error(
+      "Usuário inválido para geração do PDF protegido."
+    );
+  }
+
+
   const protectedDirectory =
     await ensureProtectedDir();
 
 
-  let pdfBytes:
-    Uint8Array;
-
-
-  try {
-    const buffer =
-      await readFile(
-        originalPdfPath
-      );
-
-
-    pdfBytes =
-      new Uint8Array(
-        buffer
-      );
-  } catch {
-    /**
-     * Compatibilidade temporária da implementação atual.
-     *
-     * Em uma etapa de endurecimento para produção,
-     * arquivo ausente deverá falhar em vez de gerar
-     * documento substituto.
-     */
-    const pdfDoc =
-      await PDFDocument.create();
-
-
-    const page =
-      pdfDoc.addPage([
-        595,
-        842,
-      ]);
-
-
-    const font =
-      await pdfDoc.embedFont(
-        StandardFonts.Helvetica
-      );
-
-
-    page.drawText(
-      "Facil Digital+ - Material de Estudo",
-      {
-        x: 50,
-        y: 750,
-        size: 24,
-        font,
-      }
+  /**
+   * Não existe mais documento substituto.
+   *
+   * ENOENT, EACCES ou qualquer outra falha
+   * de leitura interrompe a operação.
+   */
+  const buffer =
+    await readFile(
+      originalPdfPath
     );
 
 
-    page.drawText(
-      "Este é um PDF de exemplo gerado para testes.",
-      {
-        x: 50,
-        y: 700,
-        size: 14,
-        font,
-      }
+  const pdfBytes =
+    new Uint8Array(
+      buffer
     );
 
 
-    page.drawText(
-      "Em produção, este será o conteúdo real da apostila.",
-      {
-        x: 50,
-        y: 670,
-        size: 12,
-        font,
-      }
-    );
-
-
-    pdfBytes =
-      await pdfDoc.save();
-  }
-
-
-  const watermarkedPdf =
+  /**
+   * addWatermarkToPdf() executa PDFDocument.load().
+   *
+   * Assim, um arquivo que apenas contenha uma
+   * assinatura "%PDF-" mas esteja estruturalmente
+   * corrompido não será entregue.
+   */
+  const protectedPdf =
     await addWatermarkToPdf(
       pdfBytes,
       userCpf
     );
 
 
-  const protectedPdf =
-    await protectPdfWithPassword(
-      watermarkedPdf,
-      userCpf
-    );
-
-
+  /**
+   * 32 bytes = 256 bits.
+   *
+   * Em hexadecimal:
+   *
+   * 64 caracteres.
+   */
   const downloadToken =
     randomBytes(
       32
@@ -496,29 +622,38 @@ export async function generateProtectedPdf(
     );
 
 
-  const fileName =
-    [
-      "protected",
-      userId,
-      Date.now(),
-      downloadToken.slice(
-        0,
-        8
-      ),
-    ].join("_") +
-    ".pdf";
-
-
   const protectedPath =
-    join(
+    protectedPdfPathFromToken(
       protectedDirectory,
-      fileName
+      downloadToken
     );
+
+
+  if (
+    !protectedPath
+  ) {
+    throw new Error(
+      "Falha ao gerar caminho seguro para o download."
+    );
+  }
 
 
   await writeFile(
     protectedPath,
-    protectedPdf
+    protectedPdf,
+    {
+      /**
+       * Cria somente se ainda não existir.
+       *
+       * Mesmo uma colisão extremamente improvável
+       * não sobrescreverá um download existente.
+       */
+      flag:
+        "wx",
+
+      mode:
+        0o640,
+    }
   );
 
 
@@ -540,12 +675,22 @@ export async function generateProtectedPdf(
 }
 
 
+/**
+ * Remove arquivos temporários antigos.
+ *
+ * A limpeza baseada em mtime continua existindo
+ * como proteção adicional.
+ *
+ * A Fase 3E também passa a remover imediatamente
+ * arquivos associados a links expirados ou revogados.
+ */
 export async function cleanupExpiredPdfs(): Promise<number> {
   const protectedDirectory =
     await ensureProtectedDir();
 
 
-  let removed = 0;
+  let removed =
+    0;
 
 
   try {
@@ -560,8 +705,17 @@ export async function cleanupExpiredPdfs(): Promise<number> {
 
 
     for (
-      const file of files
+      const file of
+        files
     ) {
+      /**
+       * O diretório é dedicado aos PDFs protegidos.
+       *
+       * Mantemos compatibilidade com arquivos
+       * temporários produzidos por versões anteriores,
+       * portanto não restringimos aqui somente ao
+       * novo padrão protected_<token>.pdf.
+       */
       if (
         !file.endsWith(
           ".pdf"
@@ -598,12 +752,16 @@ export async function cleanupExpiredPdfs(): Promise<number> {
           );
 
 
-          removed += 1;
+          removed +=
+            1;
         }
       } catch {
         /**
-         * Arquivo pode ter sido removido entre
-         * readdir() e stat().
+         * O arquivo pode ter sido removido entre
+         * readdir(), stat() e unlink().
+         *
+         * A limpeza não deve interromper por causa
+         * de um arquivo individual.
          */
       }
     }
@@ -616,60 +774,46 @@ export async function cleanupExpiredPdfs(): Promise<number> {
 }
 
 
+/**
+ * Localiza um PDF protegido utilizando
+ * exclusivamente o token completo.
+ *
+ * Diferente da implementação anterior,
+ * não existe:
+ *
+ * files.find(file.includes(token.slice(0, 8)))
+ *
+ * Isso elimina colisões e correspondência parcial.
+ */
 export async function getProtectedPdfByToken(
-  downloadToken: string
+  downloadToken:
+    string
 ): Promise<{
-  filePath: string;
-  buffer: Buffer;
+  filePath:
+    string;
+
+  buffer:
+    Buffer;
 } | null> {
+  const protectedDirectory =
+    await ensureProtectedDir();
+
+
+  const filePath =
+    protectedPdfPathFromToken(
+      protectedDirectory,
+      downloadToken
+    );
+
+
+  if (
+    !filePath
+  ) {
+    return null;
+  }
+
+
   try {
-    const protectedDirectory =
-      await ensureProtectedDir();
-
-
-    const files =
-      await readdir(
-        protectedDirectory
-      );
-
-
-    const targetFile =
-      files.find(
-        (
-          file
-        ) =>
-          file.includes(
-            downloadToken.slice(
-              0,
-              8
-            )
-          )
-      );
-
-
-    if (
-      !targetFile
-    ) {
-      return null;
-    }
-
-
-    const filePath =
-      join(
-        protectedDirectory,
-        targetFile
-      );
-
-
-    if (
-      !existsSync(
-        filePath
-      )
-    ) {
-      return null;
-    }
-
-
     const buffer =
       await readFile(
         filePath
@@ -680,7 +824,81 @@ export async function getProtectedPdfByToken(
       filePath,
       buffer,
     };
-  } catch {
-    return null;
+  } catch (
+    error
+  ) {
+    if (
+      isNodeErrorCode(
+        error,
+        "ENOENT"
+      )
+    ) {
+      return null;
+    }
+
+
+    /**
+     * Erros reais de filesystem não são mascarados
+     * como "arquivo não encontrado".
+     *
+     * Isso permite identificar EACCES, EIO etc.
+     */
+    throw error;
+  }
+}
+
+
+/**
+ * Remove exatamente o arquivo correspondente
+ * ao token informado.
+ *
+ * Retorna:
+ *
+ * true  → arquivo existia e foi removido
+ * false → token inválido ou arquivo já não existia
+ */
+export async function removeProtectedPdfByToken(
+  downloadToken:
+    string
+): Promise<boolean> {
+  const protectedDirectory =
+    await ensureProtectedDir();
+
+
+  const filePath =
+    protectedPdfPathFromToken(
+      protectedDirectory,
+      downloadToken
+    );
+
+
+  if (
+    !filePath
+  ) {
+    return false;
+  }
+
+
+  try {
+    await unlink(
+      filePath
+    );
+
+
+    return true;
+  } catch (
+    error
+  ) {
+    if (
+      isNodeErrorCode(
+        error,
+        "ENOENT"
+      )
+    ) {
+      return false;
+    }
+
+
+    throw error;
   }
 }

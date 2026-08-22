@@ -578,11 +578,22 @@ describe(
               price:
                 99.9,
 
+              /**
+               * A Fase 3D testa exclusivamente
+               * a regra editorial e publishedAt.
+               *
+               * Referências gerenciadas são verificadas
+               * fisicamente desde a Fase 3E.
+               *
+               * Por isso este teste utiliza referências
+               * legadas válidas para manter cada suíte
+               * responsável por sua própria regra.
+               */
               cover:
                 "/covers/teste.png",
 
               pdfPath:
-                "managed-pdf:3-00000000-0000-4000-8000-000000000000.pdf",
+                "/pdfs/teste.pdf",
 
               active:
                 false,

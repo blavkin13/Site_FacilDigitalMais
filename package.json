@@ -11,7 +11,6 @@
     "start": "next start",
     "test": "npm run build && node --test --test-isolation=none tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern .next",
-
     "db:generate": "drizzle-kit generate",
     "db:init": "tsx db/init.ts",
     "db:migrate": "tsx db/init.ts",
@@ -19,6 +18,8 @@
     "db:seed-orders": "tsx db/seed-orders.ts",
     "db:seed-simulations": "tsx db/seed-simulations.ts",
     "db:load-products": "tsx scripts/load-products.ts",
+    "storage:check": "tsx scripts/storage-maintenance.ts",
+    "storage:cleanup": "tsx scripts/storage-maintenance.ts --apply",
     "test:phase0:build": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase0-build.test.mjs",
     "test:phase0:db": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase0.test.mjs",
     "test:phase0": "npm run test:phase0:build && npm run test:phase0:db",
@@ -42,12 +43,15 @@
     "test:phase3c-upload": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3c-admin-upload.test.mjs",
     "test:phase3c-integration": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3c-admin-integration.test.mjs",
     "test:phase3c": "npm run test:phase3c-upload && npm run test:phase3c-integration",
-    "test:production-build": "rm -rf .next && next build",
-    "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:phase3b-admin-ui test:phase3c test:phase3d test:production-build",
-    "validate": "node scripts/validate-all.mjs",
     "test:phase3d-foundation": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3d-publication-foundation.test.mjs",
     "test:phase3d-ui": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3d-admin-seo.test.mjs",
-    "test:phase3d": "npm run test:phase3d-foundation && npm run test:phase3d-ui"
+    "test:phase3d": "npm run test:phase3d-foundation && npm run test:phase3d-ui",
+    "test:phase3e-hardening": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3e-download-hardening.test.mjs",
+    "test:phase3e-maintenance": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3e-storage-maintenance.test.mjs",
+    "test:phase3e": "npm run test:phase3e-hardening && npm run test:phase3e-maintenance",
+    "test:production-build": "rm -rf .next && next build",
+    "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:phase3b-admin-ui test:phase3c test:phase3d test:phase3e test:production-build",
+    "validate": "node scripts/validate-all.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

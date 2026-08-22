@@ -32,11 +32,17 @@ import {
 } from "../../../../lib/admin-product-validation";
 
 import {
+  getManagedProductAssetIntegrityIssues,
+} from "../../../../lib/admin-product-storage-maintenance";
+
+import {
   getProductPublicationIssues,
 } from "../../../../lib/product-publication";
 
+
 function validationErrorResponse(
-  error: AdminProductValidationError
+  error:
+    AdminProductValidationError
 ) {
   return NextResponse.json(
     {
@@ -55,7 +61,8 @@ function validationErrorResponse(
 
 
 function isSlugConflict(
-  error: unknown
+  error:
+    unknown
 ): boolean {
   return (
     error instanceof
@@ -73,7 +80,8 @@ function isSlugConflict(
 
 
 async function readJsonBody(
-  request: NextRequest
+  request:
+    NextRequest
 ): Promise<unknown> {
   try {
     return await request.json();
@@ -88,13 +96,16 @@ async function readJsonBody(
 /**
  * GET
  *
- * Lista apostilas para o painel administrativo.
+ * Lista todas as apostilas para o painel
+ * administrativo.
  *
- * Produtos ativos e inativos são retornados porque
- * administradores precisam gerenciar ambos.
+ * Produtos ativos e inativos são retornados,
+ * pois o administrador precisa gerenciar tanto
+ * publicações quanto rascunhos.
  */
 export async function GET(
-  request: NextRequest
+  request:
+    NextRequest
 ) {
   try {
     const authorization =
@@ -124,6 +135,7 @@ export async function GET(
           desc(
             products.updatedAt
           ),
+
           asc(
             products.title
           )
@@ -163,16 +175,23 @@ export async function GET(
 /**
  * POST
  *
- * Cria nova apostila.
+ * Cria uma nova apostila.
  *
- * Toda apostila criada por esta API nasce inativa.
+ * Regras:
  *
- * cover e pdfPath não podem ser definidos pelo JSON.
- * Esses campos serão controlados pelos endpoints seguros
- * de upload da Fase 3C.
+ * - somente administrador;
+ * - body passa pela whitelist do validator;
+ * - mass assignment não é permitido;
+ * - capa não pode ser definida diretamente;
+ * - pdfPath não pode ser definido diretamente;
+ * - nova apostila sempre nasce como rascunho.
+ *
+ * Capa e PDF são adicionados posteriormente
+ * através do endpoint seguro de assets.
  */
 export async function POST(
-  request: NextRequest
+  request:
+    NextRequest
 ) {
   try {
     const authorization =
@@ -233,7 +252,7 @@ export async function POST(
   ) {
     if (
       error instanceof
-      AdminProductValidationError
+        AdminProductValidationError
     ) {
       return validationErrorResponse(
         error
@@ -282,14 +301,44 @@ export async function POST(
 /**
  * PATCH
  *
- * Atualiza somente campos explicitamente permitidos
- * pelo validator.
+ * Atualiza somente campos explicitamente
+ * autorizados pelo validator.
  *
- * Não existe mais:
+ * Segurança:
+ *
+ * Não existe:
  *
  *   const { id, ...updates } = body
  *
- * portanto propriedades arbitrárias nunca alcançam o ORM.
+ * Portanto propriedades arbitrárias enviadas
+ * pelo cliente nunca chegam diretamente ao ORM.
+ *
+ *
+ * FASE 3D
+ * --------
+ *
+ * Uma apostila publicada precisa satisfazer todos
+ * os requisitos editoriais.
+ *
+ *
+ * FASE 3E
+ * --------
+ *
+ * Uma referência de storage não é suficiente.
+ *
+ * Quando capa ou PDF utilizarem referências
+ * gerenciadas, o arquivo físico correspondente
+ * também precisa:
+ *
+ * - existir;
+ * - ser um arquivo regular;
+ * - estar acessível para leitura.
+ *
+ * Isso impede que o banco publique:
+ *
+ * managed-pdf:arquivo.pdf
+ *
+ * quando arquivo.pdf não existe mais no disco.
  */
 export async function PATCH(
   request:
@@ -360,7 +409,15 @@ export async function PATCH(
 
 
     /**
-     * Estado final da apostila após o PATCH.
+     * Estado final que a apostila terá
+     * caso este PATCH seja efetivado.
+     *
+     * É importante validar nextProduct em vez
+     * de apenas existingProduct ou updates.
+     *
+     * Dessa forma é possível, por exemplo,
+     * preencher o último campo obrigatório e
+     * publicar na mesma requisição.
      */
     const nextProduct = {
       ...existingProduct,
@@ -369,17 +426,17 @@ export async function PATCH(
 
 
     /**
-     * Se a apostila continuará publicada após
-     * esta alteração, ela precisa continuar
-     * atendendo todos os requisitos editoriais.
+     * Determina se o produto ficará publicado
+     * após esta atualização.
      *
-     * Isso impede, por exemplo:
+     * Caso "active" não esteja no PATCH:
      *
-     * produto ativo
-     *     ↓
-     * PATCH organization = null
-     *     ↓
-     * produto inválido continuar público
+     * - produto já ativo continuará ativo;
+     * - produto inativo continuará inativo.
+     *
+     * Isso também impede que uma apostila já
+     * publicada seja tornada inválida através
+     * de uma edição posterior.
      */
     const willRemainPublished =
       updates.active ===
@@ -393,10 +450,44 @@ export async function PATCH(
     if (
       willRemainPublished
     ) {
-      const issues =
+      /**
+       * PRIMEIRA CAMADA
+       *
+       * Validação editorial.
+       *
+       * Não envolve filesystem e é barata.
+       */
+      const editorialIssues =
         getProductPublicationIssues(
           nextProduct
         );
+
+
+      /**
+       * SEGUNDA CAMADA
+       *
+       * Validação física do armazenamento.
+       *
+       * Só executamos I/O quando a validação
+       * editorial já estiver totalmente válida.
+       *
+       * Isso evita tocar no filesystem para um
+       * produto que claramente já possui campos
+       * editoriais pendentes.
+       */
+      const storageIssues =
+        editorialIssues.length ===
+        0
+          ? await getManagedProductAssetIntegrityIssues(
+              nextProduct
+            )
+          : [];
+
+
+      const issues = [
+        ...editorialIssues,
+        ...storageIssues,
+      ];
 
 
       if (
@@ -425,11 +516,24 @@ export async function PATCH(
 
 
     /**
-     * publishedAt registra a primeira publicação
-     * explícita realizada pelo painel.
+     * Registra somente a PRIMEIRA publicação.
      *
-     * Despublicar e publicar novamente não altera
-     * a data original.
+     * Exemplo:
+     *
+     * rascunho
+     *    ↓
+     * publicado
+     *    ↓
+     * publishedAt = agora
+     *
+     *
+     * publicado
+     *    ↓
+     * rascunho
+     *    ↓
+     * publicado novamente
+     *
+     * publishedAt permanece com a data original.
      */
     const shouldRegisterFirstPublication =
       updates.active ===
@@ -481,7 +585,7 @@ export async function PATCH(
   ) {
     if (
       error instanceof
-      AdminProductValidationError
+        AdminProductValidationError
     ) {
       return validationErrorResponse(
         error
@@ -532,11 +636,25 @@ export async function PATCH(
  *
  * Soft delete.
  *
- * Nenhum registro comercial é removido fisicamente.
+ * Nenhum registro comercial é removido
+ * fisicamente.
+ *
  * A apostila apenas deixa de ser publicada.
+ *
+ * Isso preserva:
+ *
+ * - pedidos anteriores;
+ * - order_items;
+ * - downloads;
+ * - histórico;
+ * - relacionamentos de banco.
+ *
+ * A remoção física de capa/PDF é uma operação
+ * separada no endpoint administrativo de assets.
  */
 export async function DELETE(
-  request: NextRequest
+  request:
+    NextRequest
 ) {
   try {
     const authorization =
@@ -618,7 +736,7 @@ export async function DELETE(
   ) {
     if (
       error instanceof
-      AdminProductValidationError
+        AdminProductValidationError
     ) {
       return validationErrorResponse(
         error
