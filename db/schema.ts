@@ -3,6 +3,8 @@ import {
   text,
   integer,
   real,
+  index,
+  uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
 import {
@@ -492,11 +494,25 @@ export const questions =
           "question_text"
         ).notNull(),
 
+      /**
+       * Alternativas serializadas em JSON.
+       *
+       * O domínio administrativo trabalha com
+       * string[], mas a persistência continua
+       * compatível com a estrutura SQLite atual.
+       */
       options:
         text(
           "options"
         ).notNull(),
 
+      /**
+       * Índice zero-based da alternativa correta.
+       *
+       * Este campo é estritamente interno.
+       * APIs destinadas ao aluno nunca devem
+       * expô-lo antes da submissão.
+       */
       correctAnswer:
         integer(
           "correct_answer"
@@ -521,6 +537,27 @@ export const questions =
           "medium"
         ),
 
+      /**
+       * Questões não são apagadas fisicamente
+       * pelo painel.
+       *
+       * Uma questão arquivada permanece no banco
+       * para preservar referências e resultados
+       * históricos.
+       */
+      active:
+        integer(
+          "active",
+          {
+            mode:
+              "boolean",
+          }
+        )
+          .notNull()
+          .default(
+            true
+          ),
+
       createdAt:
         text(
           "created_at"
@@ -529,7 +566,30 @@ export const questions =
           .default(
             sql`(datetime('now'))`
           ),
-    }
+
+      /**
+       * Nullable apenas por compatibilidade de
+       * migration com bancos já existentes.
+       *
+       * Novas operações administrativas sempre
+       * preencherão este campo.
+       */
+      updatedAt:
+        text(
+          "updated_at"
+        ),
+    },
+    (
+      table
+    ) => [
+      index(
+        "idx_questions_active_bank_subject"
+      ).on(
+        table.active,
+        table.bank,
+        table.subject
+      ),
+    ]
   );
 
 
@@ -564,16 +624,40 @@ export const simulations =
           "description"
         ),
 
+      /**
+       * Tempo limite em minutos.
+       */
       timeLimit:
         integer(
           "time_limit"
         ).notNull(),
 
+      /**
+       * CAMPO LEGADO.
+       *
+       * Permanece temporariamente para permitir
+       * uma transição segura dos dados antigos.
+       *
+       * A partir da Fase 4, a fonte de verdade para
+       * composição do simulado será:
+       *
+       * simulation_questions
+       *
+       * Novos simulados administrativos utilizarão
+       * "[]" neste campo.
+       */
       questionIds:
         text(
           "question_ids"
         ).notNull(),
 
+      /**
+       * active continua compatível com simulados
+       * legados.
+       *
+       * A API administrativa da Fase 4 sempre criará
+       * novos simulados explicitamente com active=false.
+       */
       active:
         integer(
           "active",
@@ -585,6 +669,17 @@ export const simulations =
           true
         ),
 
+      /**
+       * Data da primeira publicação administrativa.
+       *
+       * Simulados legados que já estavam ativos
+       * receberão created_at durante a migration.
+       */
+      publishedAt:
+        text(
+          "published_at"
+        ),
+
       createdAt:
         text(
           "created_at"
@@ -593,7 +688,206 @@ export const simulations =
           .default(
             sql`(datetime('now'))`
           ),
-    }
+
+      updatedAt:
+        text(
+          "updated_at"
+        ),
+    },
+    (
+      table
+    ) => [
+      index(
+        "idx_simulations_active"
+      ).on(
+        table.active
+      ),
+    ]
+  );
+
+
+// ==========================================
+// PRODUTOS LIBERADORES DE SIMULADOS
+// ==========================================
+
+/**
+ * Relação muitos-para-muitos:
+ *
+ * simulation_products
+ *
+ * Um simulado pode ser liberado por várias
+ * apostilas.
+ *
+ * Uma apostila também pode liberar vários
+ * simulados.
+ *
+ * Essa tabela será a base do entitlement:
+ *
+ * order_items.product_id
+ *          ↓
+ * simulation_products.product_id
+ *          ↓
+ * simulations.id
+ */
+export const simulationProducts =
+  sqliteTable(
+    "simulation_products",
+    {
+      id:
+        integer(
+          "id"
+        ).primaryKey({
+          autoIncrement:
+            true,
+        }),
+
+      simulationId:
+        integer(
+          "simulation_id"
+        )
+          .notNull()
+          .references(
+            () =>
+              simulations.id,
+            {
+              onDelete:
+                "cascade",
+            }
+          ),
+
+      productId:
+        integer(
+          "product_id"
+        )
+          .notNull()
+          .references(
+            () =>
+              products.id,
+            {
+              onDelete:
+                "cascade",
+            }
+          ),
+
+      createdAt:
+        text(
+          "created_at"
+        )
+          .notNull()
+          .default(
+            sql`(datetime('now'))`
+          ),
+    },
+    (
+      table
+    ) => [
+      uniqueIndex(
+        "uq_simulation_products_simulation_product"
+      ).on(
+        table.simulationId,
+        table.productId
+      ),
+
+      index(
+        "idx_simulation_products_product_id"
+      ).on(
+        table.productId
+      ),
+    ]
+  );
+
+
+// ==========================================
+// QUESTÕES DOS SIMULADOS
+// ==========================================
+
+/**
+ * Substitui o antigo simulations.question_ids
+ * como fonte de verdade.
+ *
+ * position é 1-based:
+ *
+ * 1 = primeira questão
+ * 2 = segunda questão
+ * ...
+ */
+export const simulationQuestions =
+  sqliteTable(
+    "simulation_questions",
+    {
+      id:
+        integer(
+          "id"
+        ).primaryKey({
+          autoIncrement:
+            true,
+        }),
+
+      simulationId:
+        integer(
+          "simulation_id"
+        )
+          .notNull()
+          .references(
+            () =>
+              simulations.id,
+            {
+              onDelete:
+                "cascade",
+            }
+          ),
+
+      questionId:
+        integer(
+          "question_id"
+        )
+          .notNull()
+          .references(
+            () =>
+              questions.id,
+            {
+              onDelete:
+                "cascade",
+            }
+          ),
+
+      position:
+        integer(
+          "position"
+        ).notNull(),
+
+      createdAt:
+        text(
+          "created_at"
+        )
+          .notNull()
+          .default(
+            sql`(datetime('now'))`
+          ),
+    },
+    (
+      table
+    ) => [
+      uniqueIndex(
+        "uq_simulation_questions_simulation_question"
+      ).on(
+        table.simulationId,
+        table.questionId
+      ),
+
+      uniqueIndex(
+        "uq_simulation_questions_simulation_position"
+      ).on(
+        table.simulationId,
+        table.position
+      ),
+
+      index(
+        "idx_simulation_questions_question_id"
+      ).on(
+        table.questionId
+      ),
+    ]
   );
 
 
@@ -648,10 +942,36 @@ export const simulationResults =
           "time_spent"
         ).notNull(),
 
+      /**
+       * Respostas enviadas pelo aluno.
+       *
+       * Mantido para compatibilidade com os
+       * resultados já existentes.
+       */
       answers:
         text(
           "answers"
         ).notNull(),
+
+      /**
+       * Snapshot imutável da tentativa.
+       *
+       * Novos resultados da Fase 4 armazenarão aqui:
+       *
+       * - enunciados;
+       * - alternativas;
+       * - resposta selecionada;
+       * - resposta correta;
+       * - explicação;
+       * - matéria.
+       *
+       * Assim uma edição futura da questão não
+       * altera retroativamente o resultado antigo.
+       */
+      snapshot:
+        text(
+          "snapshot"
+        ),
 
       completedAt:
         text(
@@ -661,7 +981,17 @@ export const simulationResults =
           .default(
             sql`(datetime('now'))`
           ),
-    }
+    },
+    (
+      table
+    ) => [
+      index(
+        "idx_simulation_results_user_simulation"
+      ).on(
+        table.userId,
+        table.simulationId
+      ),
+    ]
   );
 
 
@@ -817,11 +1147,27 @@ export type Question =
 export type NewQuestion =
   typeof questions.$inferInsert;
 
+
 export type Simulation =
   typeof simulations.$inferSelect;
 
 export type NewSimulation =
   typeof simulations.$inferInsert;
+
+
+export type SimulationProduct =
+  typeof simulationProducts.$inferSelect;
+
+export type NewSimulationProduct =
+  typeof simulationProducts.$inferInsert;
+
+
+export type SimulationQuestion =
+  typeof simulationQuestions.$inferSelect;
+
+export type NewSimulationQuestion =
+  typeof simulationQuestions.$inferInsert;
+
 
 export type SimulationResult =
   typeof simulationResults.$inferSelect;

@@ -184,6 +184,163 @@ const migrations: Migration[] = [
         ON products(active, contest_slug);
     `,
   },
+  {
+    id: "0003_simulation_management",
+    description: "Relacionamentos, publicação e histórico de simulados",
+    sql: `
+      ALTER TABLE questions
+        ADD COLUMN active INTEGER NOT NULL DEFAULT 1;
+
+      ALTER TABLE questions
+        ADD COLUMN updated_at TEXT;
+
+      UPDATE questions
+      SET updated_at = created_at
+      WHERE updated_at IS NULL;
+
+
+      ALTER TABLE simulations
+        ADD COLUMN updated_at TEXT;
+
+      ALTER TABLE simulations
+        ADD COLUMN published_at TEXT;
+
+      UPDATE simulations
+      SET
+        updated_at = created_at,
+        published_at = CASE
+          WHEN active = 1
+            THEN created_at
+          ELSE published_at
+        END
+      WHERE
+        updated_at IS NULL
+        OR (
+          active = 1
+          AND published_at IS NULL
+        );
+
+
+      ALTER TABLE simulation_results
+        ADD COLUMN snapshot TEXT;
+
+
+      CREATE TABLE IF NOT EXISTS simulation_products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        simulation_id INTEGER NOT NULL
+          REFERENCES simulations(id)
+          ON DELETE CASCADE,
+        product_id INTEGER NOT NULL
+          REFERENCES products(id)
+          ON DELETE CASCADE,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (
+          simulation_id,
+          product_id
+        )
+      );
+
+
+      CREATE TABLE IF NOT EXISTS simulation_questions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        simulation_id INTEGER NOT NULL
+          REFERENCES simulations(id)
+          ON DELETE CASCADE,
+        question_id INTEGER NOT NULL
+          REFERENCES questions(id)
+          ON DELETE CASCADE,
+        position INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (
+          simulation_id,
+          question_id
+        ),
+        UNIQUE (
+          simulation_id,
+          position
+        )
+      );
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_products_product_id
+        ON simulation_products(product_id);
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_questions_question_id
+        ON simulation_questions(question_id);
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_simulations_active
+        ON simulations(active);
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_questions_active_bank_subject
+        ON questions(active, bank, subject);
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_results_user_simulation
+        ON simulation_results(user_id, simulation_id);
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_orders_user_status
+        ON orders(user_id, status);
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_order_items_product_order
+        ON order_items(product_id, order_id);
+
+
+      /*
+       * Migra question_ids legado para a nova
+       * tabela relacional.
+       *
+       * JSON inválido é tratado como array vazio,
+       * evitando abortar a migration inteira.
+       */
+      INSERT OR IGNORE INTO simulation_questions (
+        simulation_id,
+        question_id,
+        position
+      )
+      SELECT
+        simulations.id,
+        CAST(
+          legacy_question.value
+          AS INTEGER
+        ),
+        CAST(
+          legacy_question.key
+          AS INTEGER
+        ) + 1
+      FROM
+        simulations,
+        json_each(
+          CASE
+            WHEN json_valid(
+              simulations.question_ids
+            )
+              THEN simulations.question_ids
+            ELSE '[]'
+          END
+        ) AS legacy_question
+      INNER JOIN questions
+        ON questions.id =
+          CAST(
+            legacy_question.value
+            AS INTEGER
+          )
+      WHERE
+        legacy_question.type = 'integer';
+    `,
+  },
+
 ];
 
 /**

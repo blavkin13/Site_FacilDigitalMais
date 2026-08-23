@@ -1,117 +1,375 @@
-import { NextRequest, NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
-import { getDb } from "../../../../db/index";
-import { simulations, questions, orders, simulationResults } from "../../../../db/schema";
-import { validateSession } from "../../../../lib/auth";
-import { initDatabase } from "../../../../db/init";
+import type {
+  NextRequest,
+} from "next/server";
+
+import {
+  NextResponse,
+} from "next/server";
+
+import {
+  and,
+  desc,
+  eq,
+} from "drizzle-orm";
+
+import {
+  getDb,
+} from "../../../../db/index";
+
+import {
+  simulationResults,
+  simulations,
+} from "../../../../db/schema";
+
+import {
+  initDatabase,
+} from "../../../../db/init";
+
+import {
+  validateSession,
+} from "../../../../lib/auth";
+
+import {
+  resolveSimulationAccess,
+} from "../../../../lib/simulation-access";
+
+import {
+  getSimulationQuestionRows,
+  parseSimulationQuestionOptions,
+} from "../../../../lib/simulation-repository";
+
+
+type RouteContext = {
+  params:
+    Promise<{
+      id:
+        string;
+    }>;
+};
+
+
+function parseSimulationId(
+  value:
+    string
+): number | null {
+  if (
+    !/^\d+$/.test(
+      value
+    )
+  ) {
+    return null;
+  }
+
+  const parsed =
+    Number(
+      value
+    );
+
+  return (
+    Number.isInteger(
+      parsed
+    ) &&
+    parsed >
+      0
+  )
+    ? parsed
+    : null;
+}
+
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  request:
+    NextRequest,
+  context:
+    RouteContext
 ) {
   try {
     await initDatabase();
-    const db = getDb();
 
-    const { id } = await params;
-    const simulationId = parseInt(id);
+    const params =
+      await context.params;
 
-    if (isNaN(simulationId)) {
-      return NextResponse.json({ error: "ID inválido." }, { status: 400 });
+    const simulationId =
+      parseSimulationId(
+        params.id
+      );
+
+    if (
+      simulationId ===
+      null
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "ID inválido.",
+        },
+        {
+          status:
+            400,
+        }
+      );
     }
 
-    const token = request.cookies.get("fd-session")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+    const token =
+      request.cookies.get(
+        "fd-session"
+      )?.value;
+
+    if (
+      !token
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Não autenticado.",
+        },
+        {
+          status:
+            401,
+        }
+      );
     }
 
-    const user = await validateSession(token);
-    if (!user) {
-      return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
+    const user =
+      await validateSession(
+        token
+      );
+
+    if (
+      !user
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Sessão inválida.",
+        },
+        {
+          status:
+            401,
+        }
+      );
     }
 
-    // Verificar acesso
-    const userOrders = await db
-      .select({ id: orders.id })
-      .from(orders)
-      .where(eq(orders.userId, user.id))
-      .limit(1)
-      .all();
+    const access =
+      await resolveSimulationAccess(
+        user.id,
+        simulationId
+      );
 
-    if (userOrders.length === 0) {
-      return NextResponse.json({ error: "Sem acesso." }, { status: 403 });
+    if (
+      !access.allowed
+    ) {
+      if (
+        access.reason ===
+          "simulation_not_found" ||
+        access.reason ===
+          "simulation_inactive"
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Simulado não encontrado.",
+          },
+          {
+            status:
+              404,
+          }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error:
+            "Você não possui acesso a este simulado.",
+        },
+        {
+          status:
+            403,
+        }
+      );
     }
 
-    // Buscar simulado
-    const sim = await db
-      .select()
-      .from(simulations)
-      .where(eq(simulations.id, simulationId))
-      .get();
+    const db =
+      getDb();
 
-    if (!sim || !sim.active) {
-      return NextResponse.json({ error: "Simulado não encontrado." }, { status: 404 });
-    }
-
-    // Parse dos IDs de questões
-    let questionIds: number[] = [];
-    try {
-      questionIds = JSON.parse(sim.questionIds);
-    } catch {
-      questionIds = [];
-    }
-
-    // Buscar questões (sem a resposta correta para o aluno!)
-    const allQuestions = await db
-      .select({
-        id: questions.id,
-        subject: questions.subject,
-        questionText: questions.questionText,
-        options: questions.options,
-        difficulty: questions.difficulty,
-      })
-      .from(questions)
-      .all();
-
-    const simQuestions = allQuestions
-      .filter((q) => questionIds.includes(q.id))
-      .map((q) => ({
-        ...q,
-        options: JSON.parse(q.options),
-      }));
-
-    // Buscar histórico do usuário neste simulado
-    const userResults = await db
-      .select({
-        id: simulationResults.id,
-        score: simulationResults.score,
-        totalQuestions: simulationResults.totalQuestions,
-        timeSpent: simulationResults.timeSpent,
-        completedAt: simulationResults.completedAt,
-      })
-      .from(simulationResults)
-      .where(
-        and(
-          eq(simulationResults.simulationId, simulationId),
-          eq(simulationResults.userId, user.id)
+    const simulation =
+      await db
+        .select()
+        .from(
+          simulations
         )
-      )
-      .all();
+        .where(
+          eq(
+            simulations.id,
+            simulationId
+          )
+        )
+        .get();
 
-    return NextResponse.json({
-      simulation: {
-        id: sim.id,
-        title: sim.title,
-        bank: sim.bank,
-        description: sim.description,
-        timeLimit: sim.timeLimit,
-        totalQuestions: simQuestions.length,
+    if (
+      !simulation
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Simulado não encontrado.",
+        },
+        {
+          status:
+            404,
+        }
+      );
+    }
+
+    const questionRows =
+      await getSimulationQuestionRows(
+        simulationId
+      );
+
+    if (
+      questionRows.some(
+        (
+          question
+        ) =>
+          question.active !==
+          true
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Este simulado está temporariamente indisponível.",
+        },
+        {
+          status:
+            409,
+        }
+      );
+    }
+
+    const publicQuestions =
+      questionRows.map(
+        (
+          question
+        ) => ({
+          id:
+            question.id,
+
+          subject:
+            question.subject,
+
+          questionText:
+            question.questionText,
+
+          options:
+            parseSimulationQuestionOptions(
+              question.options
+            ),
+
+          difficulty:
+            question.difficulty,
+        })
+      );
+
+    const userResults =
+      await db
+        .select({
+          id:
+            simulationResults.id,
+
+          score:
+            simulationResults.score,
+
+          totalQuestions:
+            simulationResults.totalQuestions,
+
+          timeSpent:
+            simulationResults.timeSpent,
+
+          completedAt:
+            simulationResults.completedAt,
+        })
+        .from(
+          simulationResults
+        )
+        .where(
+          and(
+            eq(
+              simulationResults.simulationId,
+              simulationId
+            ),
+
+            eq(
+              simulationResults.userId,
+              user.id
+            )
+          )
+        )
+        .orderBy(
+          desc(
+            simulationResults.completedAt
+          )
+        )
+        .all();
+
+    return NextResponse.json(
+      {
+        simulation: {
+          id:
+            simulation.id,
+
+          title:
+            simulation.title,
+
+          bank:
+            simulation.bank,
+
+          description:
+            simulation.description,
+
+          timeLimit:
+            simulation.timeLimit,
+
+          totalQuestions:
+            publicQuestions.length,
+        },
+
+        /**
+         * Não contém:
+         *
+         * correctAnswer
+         * explanation
+         */
+        questions:
+          publicQuestions,
+
+        userHistory:
+          userResults,
       },
-      questions: simQuestions,
-      userHistory: userResults,
-    });
-  } catch (error) {
-    console.error("Erro ao buscar simulado:", error);
-    return NextResponse.json({ error: "Erro interno." }, { status: 500 });
+      {
+        headers: {
+          "Cache-Control":
+            "private, no-store",
+        },
+      }
+    );
+  } catch (
+    error
+  ) {
+    console.error(
+      "Erro ao buscar simulado:",
+      error
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          "Erro interno.",
+      },
+      {
+        status:
+          500,
+      }
+    );
   }
 }

@@ -31,6 +31,7 @@ import {
 
 import {
   questions,
+  simulationQuestions,
   simulationResults,
   simulations,
   users,
@@ -321,22 +322,48 @@ describe(
           );
 
 
+        /**
+         * A rota pública continua retornando o estado
+         * hasAccess utilizado pela interface.
+         */
         assert.ok(
           content.includes(
             "hasAccess"
-          )
+          ),
+          "API deve continuar retornando hasAccess"
+        );
+
+
+        /**
+         * Desde a Fase 4, a autorização comercial não
+         * deve mais ser implementada diretamente nesta
+         * rota através da tabela orders.
+         *
+         * A regra central vive em simulation-access.ts,
+         * evitando implementações diferentes entre:
+         *
+         * - listagem;
+         * - detalhe;
+         * - submit.
+         */
+        assert.ok(
+          content.includes(
+            "getAccessibleSimulationIdsForUser"
+          ),
+          "API deve utilizar a regra central de entitlement dos simulados"
         );
 
 
         assert.ok(
           content.includes(
-            "orders"
-          )
+            "lib/simulation-access"
+          ),
+          "API deve importar a camada central de acesso aos simulados"
         );
 
 
         console.log(
-          "✅ API verifica acesso"
+          "✅ API verifica acesso através do entitlement central"
         );
       }
     );
@@ -629,7 +656,9 @@ describe(
             .from(
               simulations
             )
-            .limit(1)
+            .limit(
+              1
+            )
             .get();
 
 
@@ -639,10 +668,60 @@ describe(
         );
 
 
-        const questionIds =
-          JSON.parse(
-            simulation.questionIds
-          );
+        /**
+         * A partir da Fase 4, simulations.questionIds
+         * é apenas uma coluna legada.
+         *
+         * A fonte oficial da composição do simulado é
+         * simulation_questions.
+         */
+        const relationRows =
+          await db
+            .select({
+              questionId:
+                simulationQuestions.questionId,
+
+              position:
+                simulationQuestions.position,
+            })
+            .from(
+              simulationQuestions
+            )
+            .where(
+              eq(
+                simulationQuestions.simulationId,
+                simulation.id
+              )
+            )
+            .all();
+
+
+        relationRows.sort(
+          (
+            a,
+            b
+          ) =>
+            a.position -
+            b.position
+        );
+
+
+        assert.ok(
+          relationRows.length >
+            0,
+          "Simulado deve possuir questões em simulation_questions"
+        );
+
+
+        /**
+         * Confirma também que o campo legado não voltou
+         * acidentalmente a ser a fonte de verdade.
+         */
+        assert.equal(
+          simulation.questionIds,
+          "[]",
+          "Simulado criado pelo seed deve manter questionIds apenas como legado"
+        );
 
 
         const allQuestions =
@@ -654,32 +733,91 @@ describe(
             .all();
 
 
-        const simulationQuestions =
-          allQuestions.filter(
-            (question) =>
-              questionIds.includes(
-                question.id
+        const questionsById =
+          new Map(
+            allQuestions.map(
+              (
+                question
+              ) => [
+                question.id,
+                question,
+              ]
+            )
+          );
+
+
+        const simulationQuestionRows =
+          relationRows.map(
+            (
+              relation
+            ) =>
+              questionsById.get(
+                relation.questionId
               )
           );
 
 
         assert.ok(
-          simulationQuestions.length >
-            0,
-          "Simulado deve possuir questões"
+          simulationQuestionRows.every(
+            Boolean
+          ),
+          "Todas as relações do simulado devem apontar para questões existentes"
+        );
+
+
+        const normalizedQuestions =
+          simulationQuestionRows.filter(
+            (
+              question
+            ) =>
+              question !==
+              undefined
+          );
+
+
+        assert.equal(
+          normalizedQuestions.length,
+          relationRows.length,
+          "Simulado deve possuir todas as questões normalizadas"
         );
 
 
         const answers =
-          simulationQuestions.map(
+          normalizedQuestions.map(
             (
               question,
               index
-            ) => ({
-              questionId:
-                question.id,
+            ) => {
+              const options =
+                JSON.parse(
+                  question.options
+                );
 
-              selectedOption:
+
+              assert.ok(
+                Array.isArray(
+                  options
+                ),
+                "Alternativas da questão devem ser JSON válido"
+              );
+
+
+              assert.ok(
+                options.length >=
+                  2,
+                "Questão deve possuir pelo menos duas alternativas"
+              );
+
+
+              /**
+               * Metade das respostas é correta e metade
+               * propositalmente incorreta.
+               *
+               * Usamos o tamanho real do array em vez do
+               * antigo módulo 4, porque agora questões
+               * podem possuir entre 2 e 5 alternativas.
+               */
+              const selectedOption =
                 index % 2 ===
                 0
                   ? question.correctAnswer
@@ -687,9 +825,81 @@ describe(
                       question.correctAnswer +
                       1
                     ) %
-                    4,
-            })
+                    options.length;
+
+
+              return {
+                questionId:
+                  question.id,
+
+                selectedOption,
+              };
+            }
           );
+
+
+        const expectedScore =
+          normalizedQuestions.filter(
+            (
+              _question,
+              index
+            ) =>
+              index % 2 ===
+              0
+          ).length;
+
+
+        const snapshot =
+          {
+            version:
+              1,
+
+            simulation: {
+              id:
+                simulation.id,
+
+              title:
+                simulation.title,
+
+              bank:
+                simulation.bank,
+
+              timeLimit:
+                simulation.timeLimit,
+            },
+
+            questions:
+              normalizedQuestions.map(
+                (
+                  question,
+                  index
+                ) => ({
+                  questionId:
+                    question.id,
+
+                  questionText:
+                    question.questionText,
+
+                  options:
+                    JSON.parse(
+                      question.options
+                    ),
+
+                  selectedOption:
+                    answers[index]
+                      .selectedOption,
+
+                  correctAnswer:
+                    question.correctAnswer,
+
+                  explanation:
+                    question.explanation,
+
+                  subject:
+                    question.subject,
+                })
+              ),
+          };
 
 
         const inserted =
@@ -705,13 +915,10 @@ describe(
                 simulation.id,
 
               score:
-                Math.ceil(
-                  simulationQuestions.length /
-                    2
-                ),
+                expectedScore,
 
               totalQuestions:
-                simulationQuestions.length,
+                normalizedQuestions.length,
 
               timeSpent:
                 300,
@@ -720,6 +927,15 @@ describe(
                 JSON.stringify(
                   answers
                 ),
+
+              /**
+               * Fase 4 preserva o estado histórico da
+               * tentativa através de snapshot.
+               */
+              snapshot:
+                JSON.stringify(
+                  snapshot
+                ),
             })
             .returning();
 
@@ -727,6 +943,30 @@ describe(
         assert.ok(
           inserted[0],
           "Resultado deve ser persistido"
+        );
+
+
+        assert.ok(
+          inserted[0].snapshot,
+          "Resultado deve possuir snapshot histórico"
+        );
+
+
+        const persistedSnapshot =
+          JSON.parse(
+            inserted[0].snapshot
+          );
+
+
+        assert.equal(
+          persistedSnapshot.version,
+          1
+        );
+
+
+        assert.equal(
+          persistedSnapshot.questions.length,
+          normalizedQuestions.length
         );
 
 
@@ -747,7 +987,7 @@ describe(
 
 
         console.log(
-          "✅ Fluxo completo: acesso → questões → submissão → ranking"
+          "✅ Fluxo completo: simulation_questions → submissão → snapshot → ranking"
         );
       }
     );
