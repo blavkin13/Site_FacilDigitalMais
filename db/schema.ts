@@ -892,6 +892,174 @@ export const simulationQuestions =
 
 
 // ==========================================
+// TENTATIVAS SERVER-SIDE DE SIMULADOS
+// ==========================================
+
+/**
+ * Representa uma execução real de prova.
+ *
+ * A tentativa nasce no servidor e congela:
+ *
+ * - horário de início;
+ * - horário de expiração;
+ * - composição da prova;
+ * - conteúdo das questões;
+ * - gabaritos usados para correção futura.
+ *
+ * O navegador recebe somente a versão pública
+ * do snapshot, sem gabarito e explicação.
+ */
+export const simulationAttempts =
+  sqliteTable(
+    "simulation_attempts",
+    {
+      id:
+        integer(
+          "id"
+        ).primaryKey({
+          autoIncrement:
+            true,
+        }),
+
+      /**
+       * Identificador público não sequencial.
+       *
+       * Não expomos o ID inteiro da tentativa
+       * nas rotas destinadas ao aluno.
+       */
+      token:
+        text(
+          "token"
+        )
+          .notNull()
+          .unique(),
+
+      userId:
+        integer(
+          "user_id"
+        )
+          .notNull()
+          .references(
+            () =>
+              users.id
+          ),
+
+      simulationId:
+        integer(
+          "simulation_id"
+        )
+          .notNull()
+          .references(
+            () =>
+              simulations.id
+          ),
+
+      status:
+        text(
+          "status",
+          {
+            enum: [
+              "in_progress",
+              "completed",
+              "expired",
+              "revoked",
+            ],
+          }
+        )
+          .notNull()
+          .default(
+            "in_progress"
+          ),
+
+      /**
+       * Ambos são definidos exclusivamente
+       * pelo servidor.
+       */
+      startedAt:
+        text(
+          "started_at"
+        ).notNull(),
+
+      expiresAt:
+        text(
+          "expires_at"
+        ).notNull(),
+
+      completedAt:
+        text(
+          "completed_at"
+        ),
+
+      /**
+       * Snapshot privado da prova no momento
+       * em que a tentativa foi iniciada.
+       *
+       * Contém inclusive correctAnswer e
+       * explanation para que alterações futuras
+       * no banco de questões não modifiquem uma
+       * tentativa já iniciada.
+       */
+      questionSnapshot:
+        text(
+          "question_snapshot"
+        ).notNull(),
+
+      createdAt:
+        text(
+          "created_at"
+        )
+          .notNull()
+          .default(
+            sql`(datetime('now'))`
+          ),
+
+      updatedAt:
+        text(
+          "updated_at"
+        )
+          .notNull()
+          .default(
+            sql`(datetime('now'))`
+          ),
+    },
+    (
+      table
+    ) => [
+      /**
+       * Um usuário pode ter várias tentativas
+       * históricas, mas somente uma aberta por
+       * simulado.
+       */
+      uniqueIndex(
+        "uq_simulation_attempts_active_user_simulation"
+      )
+        .on(
+          table.userId,
+          table.simulationId
+        )
+        .where(
+          sql`${table.status} = 'in_progress'`
+        ),
+
+      index(
+        "idx_simulation_attempts_user_simulation_status"
+      ).on(
+        table.userId,
+        table.simulationId,
+        table.status
+      ),
+
+      index(
+        "idx_simulation_attempts_status_expires"
+      ).on(
+        table.status,
+        table.expiresAt
+      ),
+    ]
+  );
+
+
+// ==========================================
 // TABELA DE RESULTADOS
 // ==========================================
 
@@ -927,6 +1095,22 @@ export const simulationResults =
               simulations.id
           ),
 
+      /**
+       * Nullable para preservar resultados
+       * anteriores à Fase 4.3.
+       *
+       * Novos resultados serão obrigatoriamente
+       * relacionados a uma tentativa server-side
+       * quando o submit for migrado na 4.3B.
+       */
+      attemptId:
+        integer(
+          "attempt_id"
+        ).references(
+          () =>
+            simulationAttempts.id
+        ),
+
       score:
         integer(
           "score"
@@ -954,9 +1138,9 @@ export const simulationResults =
         ).notNull(),
 
       /**
-       * Snapshot imutável da tentativa.
+       * Snapshot imutável do resultado.
        *
-       * Novos resultados da Fase 4 armazenarão aqui:
+       * Novos resultados armazenam:
        *
        * - enunciados;
        * - alternativas;
@@ -964,9 +1148,6 @@ export const simulationResults =
        * - resposta correta;
        * - explicação;
        * - matéria.
-       *
-       * Assim uma edição futura da questão não
-       * altera retroativamente o resultado antigo.
        */
       snapshot:
         text(
@@ -985,6 +1166,12 @@ export const simulationResults =
     (
       table
     ) => [
+      uniqueIndex(
+        "uq_simulation_results_attempt_id"
+      ).on(
+        table.attemptId
+      ),
+
       index(
         "idx_simulation_results_user_simulation"
       ).on(
@@ -1168,6 +1355,11 @@ export type SimulationQuestion =
 export type NewSimulationQuestion =
   typeof simulationQuestions.$inferInsert;
 
+export type SimulationAttempt =
+  typeof simulationAttempts.$inferSelect;
+
+export type NewSimulationAttempt =
+  typeof simulationAttempts.$inferInsert;
 
 export type SimulationResult =
   typeof simulationResults.$inferSelect;

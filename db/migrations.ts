@@ -341,6 +341,97 @@ const migrations: Migration[] = [
     `,
   },
 
+  {
+    id: "0004_simulation_attempts",
+    description: "Tentativas server-side seguras de simulados",
+    sql: `
+      CREATE TABLE IF NOT EXISTS simulation_attempts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        token TEXT NOT NULL UNIQUE,
+
+        user_id INTEGER NOT NULL
+          REFERENCES users(id),
+
+        simulation_id INTEGER NOT NULL
+          REFERENCES simulations(id),
+
+        status TEXT NOT NULL
+          DEFAULT 'in_progress'
+          CHECK (
+            status IN (
+              'in_progress',
+              'completed',
+              'expired',
+              'revoked'
+            )
+          ),
+
+        started_at TEXT NOT NULL,
+
+        expires_at TEXT NOT NULL,
+
+        completed_at TEXT,
+
+        question_snapshot TEXT NOT NULL,
+
+        created_at TEXT NOT NULL
+          DEFAULT (datetime('now')),
+
+        updated_at TEXT NOT NULL
+          DEFAULT (datetime('now'))
+      );
+
+
+      ALTER TABLE simulation_results
+        ADD COLUMN attempt_id INTEGER
+          REFERENCES simulation_attempts(id);
+
+
+      /*
+       * Uma tentativa concluída só pode originar
+       * um resultado.
+       *
+       * SQLite permite múltiplos NULL em índices
+       * UNIQUE, preservando resultados legados.
+       */
+      CREATE UNIQUE INDEX IF NOT EXISTS
+        uq_simulation_results_attempt_id
+        ON simulation_results(attempt_id);
+
+
+      /*
+       * Um aluno pode possuir diversas tentativas
+       * históricas do mesmo simulado, porém apenas
+       * UMA tentativa in_progress por vez.
+       */
+      CREATE UNIQUE INDEX IF NOT EXISTS
+        uq_simulation_attempts_active_user_simulation
+        ON simulation_attempts(
+          user_id,
+          simulation_id
+        )
+        WHERE status = 'in_progress';
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_attempts_user_simulation_status
+        ON simulation_attempts(
+          user_id,
+          simulation_id,
+          status
+        );
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_attempts_status_expires
+        ON simulation_attempts(
+          status,
+          expires_at
+        );
+    `,
+  },
+
 ];
 
 /**

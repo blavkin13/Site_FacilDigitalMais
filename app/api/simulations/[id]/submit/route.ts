@@ -7,20 +7,6 @@ import {
 } from "next/server";
 
 import {
-  eq,
-} from "drizzle-orm";
-
-import {
-  getDb,
-} from "../../../../../db/index";
-
-import {
-  simulationResults,
-  simulations,
-  users,
-} from "../../../../../db/schema";
-
-import {
   initDatabase,
 } from "../../../../../db/init";
 
@@ -29,13 +15,10 @@ import {
 } from "../../../../../lib/auth";
 
 import {
-  resolveSimulationAccess,
-} from "../../../../../lib/simulation-access";
-
-import {
-  getSimulationQuestionRows,
-  parseSimulationQuestionOptions,
-} from "../../../../../lib/simulation-repository";
+  finalizeSimulationAttempt,
+  getSimulationRanking,
+  type FinalizeAttemptDecision,
+} from "../../../../../lib/simulation-attempt-submit";
 
 
 type RouteContext = {
@@ -44,15 +27,6 @@ type RouteContext = {
       id:
         string;
     }>;
-};
-
-
-type SubmittedAnswer = {
-  questionId:
-    number;
-
-  selectedOption:
-    number | null;
 };
 
 
@@ -84,204 +58,93 @@ function parseSimulationId(
     : null;
 }
 
+function failureResponse(
+  decision:
+    Extract<
+      FinalizeAttemptDecision,
+      {
+        ok:
+          false;
+      }
+    >
+) {
+  const body = {
+    error:
+      decision.message,
 
-function isPlainObject(
-  value:
-    unknown
-): value is Record<string, unknown> {
-  return (
-    typeof value ===
-      "object" &&
-    value !==
-      null &&
-    !Array.isArray(
-      value
-    )
-  );
-}
+    reason:
+      decision.reason,
+  };
 
-
-function validateSubmitBody(
-  input:
-    unknown
-): {
-  answers:
-    SubmittedAnswer[];
-
-  timeSpent:
-    number;
-} {
-  if (
-    !isPlainObject(
-      input
-    )
-  ) {
-    throw new Error(
-      "Dados inválidos."
-    );
-  }
-
-  const allowedFields =
-    new Set([
-      "answers",
-      "timeSpent",
-    ]);
-
-  for (
-    const key of
-      Object.keys(
-        input
-      )
-  ) {
-    if (
-      !allowedFields.has(
-        key
-      )
-    ) {
-      throw new Error(
-        `Campo "${key}" não é permitido.`
-      );
-    }
-  }
 
   if (
-    !Array.isArray(
-      input.answers
-    )
+    decision.reason ===
+      "invalid_input" ||
+    decision.reason ===
+      "answers_invalid"
   ) {
-    throw new Error(
-      "answers deve ser um array."
-    );
-  }
-
-  if (
-    !Number.isInteger(
-      input.timeSpent
-    ) ||
-    Number(
-      input.timeSpent
-    ) <
-      0
-  ) {
-    throw new Error(
-      "timeSpent inválido."
-    );
-  }
-
-  const answers =
-    input.answers.map(
-      (
-        rawAnswer
-      ) => {
-        if (
-          !isPlainObject(
-            rawAnswer
-          )
-        ) {
-          throw new Error(
-            "Resposta inválida."
-          );
-        }
-
-        const keys =
-          Object.keys(
-            rawAnswer
-          );
-
-        if (
-          keys.some(
-            (
-              key
-            ) =>
-              key !==
-                "questionId" &&
-              key !==
-                "selectedOption"
-          )
-        ) {
-          throw new Error(
-            "Resposta contém campos não permitidos."
-          );
-        }
-
-        if (
-          !Number.isInteger(
-            rawAnswer.questionId
-          ) ||
-          Number(
-            rawAnswer.questionId
-          ) <=
-            0
-        ) {
-          throw new Error(
-            "questionId inválido."
-          );
-        }
-
-        if (
-          rawAnswer.selectedOption !==
-            null &&
-          (
-            !Number.isInteger(
-              rawAnswer.selectedOption
-            ) ||
-            Number(
-              rawAnswer.selectedOption
-            ) <
-              0
-          )
-        ) {
-          throw new Error(
-            "selectedOption inválido."
-          );
-        }
-
-        return {
-          questionId:
-            Number(
-              rawAnswer.questionId
-            ),
-
-          selectedOption:
-            rawAnswer.selectedOption ===
-              null
-              ? null
-              : Number(
-                  rawAnswer.selectedOption
-                ),
-        };
+    return NextResponse.json(
+      body,
+      {
+        status:
+          400,
       }
     );
+  }
 
-  const questionIds =
-    answers.map(
-      (
-        answer
-      ) =>
-        answer.questionId
-    );
 
   if (
-    new Set(
-      questionIds
-    ).size !==
-    questionIds.length
+    decision.reason ===
+    "attempt_not_found"
   ) {
-    throw new Error(
-      "Não é permitido enviar respostas duplicadas para a mesma questão."
+    return NextResponse.json(
+      body,
+      {
+        status:
+          404,
+      }
     );
   }
 
-  return {
-    answers,
 
-    timeSpent:
-      Number(
-        input.timeSpent
-      ),
-  };
+  if (
+    decision.reason ===
+    "attempt_expired"
+  ) {
+    return NextResponse.json(
+      body,
+      {
+        status:
+          410,
+      }
+    );
+  }
+
+
+  if (
+    decision.reason ===
+      "attempt_revoked" ||
+    decision.reason ===
+      "access_revoked"
+  ) {
+    return NextResponse.json(
+      body,
+      {
+        status:
+          403,
+      }
+    );
+  }
+
+
+  return NextResponse.json(
+    body,
+    {
+      status:
+        409,
+    }
+  );
 }
-
 
 export async function POST(
   request:
@@ -292,6 +155,7 @@ export async function POST(
   try {
     await initDatabase();
 
+
     const params =
       await context.params;
 
@@ -299,6 +163,7 @@ export async function POST(
       parseSimulationId(
         params.id
       );
+
 
     if (
       simulationId ===
@@ -308,6 +173,9 @@ export async function POST(
         {
           error:
             "ID inválido.",
+
+          reason:
+            "invalid_input",
         },
         {
           status:
@@ -316,13 +184,15 @@ export async function POST(
       );
     }
 
-    const token =
+
+    const sessionToken =
       request.cookies.get(
         "fd-session"
       )?.value;
 
+
     if (
-      !token
+      !sessionToken
     ) {
       return NextResponse.json(
         {
@@ -336,10 +206,12 @@ export async function POST(
       );
     }
 
+
     const user =
       await validateSession(
-        token
+        sessionToken
       );
+
 
     if (
       !user
@@ -356,128 +228,10 @@ export async function POST(
       );
     }
 
-    /**
-     * O entitlement é revalidado no momento
-     * da submissão.
-     *
-     * Portanto refund/reject ocorrido depois que
-     * o aluno abriu a página bloqueia a submissão.
-     */
-    const access =
-      await resolveSimulationAccess(
-        user.id,
-        simulationId
-      );
-
-    if (
-      !access.allowed
-    ) {
-      if (
-        access.reason ===
-          "simulation_not_found" ||
-        access.reason ===
-          "simulation_inactive"
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              "Simulado não encontrado.",
-          },
-          {
-            status:
-              404,
-          }
-        );
-      }
-
-      return NextResponse.json(
-        {
-          error:
-            "Você não possui acesso a este simulado.",
-        },
-        {
-          status:
-            403,
-        }
-      );
-    }
-
-    const db =
-      getDb();
-
-    const simulation =
-      await db
-        .select()
-        .from(
-          simulations
-        )
-        .where(
-          eq(
-            simulations.id,
-            simulationId
-          )
-        )
-        .get();
-
-    if (
-      !simulation
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Simulado não encontrado.",
-        },
-        {
-          status:
-            404,
-        }
-      );
-    }
-
-    const officialQuestions =
-      await getSimulationQuestionRows(
-        simulationId
-      );
-
-    if (
-      officialQuestions.length ===
-      0
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "O simulado não possui questões disponíveis.",
-        },
-        {
-          status:
-            409,
-        }
-      );
-    }
-
-    if (
-      officialQuestions.some(
-        (
-          question
-        ) =>
-          question.active !==
-          true
-      )
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Este simulado está temporariamente indisponível.",
-        },
-        {
-          status:
-            409,
-        }
-      );
-    }
 
     let body:
       unknown;
+
 
     try {
       body =
@@ -487,6 +241,9 @@ export async function POST(
         {
           error:
             "Corpo JSON inválido.",
+
+          reason:
+            "invalid_input",
         },
         {
           status:
@@ -495,482 +252,101 @@ export async function POST(
       );
     }
 
-    let submitted;
 
-    try {
-      submitted =
-        validateSubmitBody(
-          body
-        );
-    } catch (
-      error
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            error instanceof
-              Error
-              ? error.message
-              : "Dados inválidos.",
-        },
-        {
-          status:
-            400,
-        }
-      );
-    }
-
-    /**
-     * O frontend atual envia uma entrada para cada
-     * questão, usando selectedOption=null quando o
-     * tempo termina antes da resposta.
-     *
-     * Exigimos o conjunto oficial completo para impedir
-     * manipulação de totalQuestions.
-     */
-    if (
-      submitted.answers.length !==
-      officialQuestions.length
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "A quantidade de respostas não corresponde ao simulado.",
-        },
-        {
-          status:
-            400,
-        }
-      );
-    }
-
-    const answerMap =
-      new Map<
-        number,
-        SubmittedAnswer
-      >();
-
-    for (
-      const answer of
-        submitted.answers
-    ) {
-      answerMap.set(
-        answer.questionId,
-        answer
-      );
-    }
-
-    const officialIds =
-      new Set(
-        officialQuestions.map(
-          (
-            question
-          ) =>
-            question.id
-        )
+    const decision =
+      await finalizeSimulationAttempt(
+        user.id,
+        simulationId,
+        body
       );
 
-    for (
-      const answer of
-        submitted.answers
-    ) {
-      if (
-        !officialIds.has(
-          answer.questionId
-        )
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              "Foi enviada uma questão que não pertence a este simulado.",
-          },
-          {
-            status:
-              400,
-          }
-        );
-      }
-    }
-
-    const maximumAcceptedTime =
-      simulation.timeLimit *
-        60 +
-      300;
 
     if (
-      submitted.timeSpent >
-      maximumAcceptedTime
+      !decision.ok
     ) {
-      return NextResponse.json(
-        {
-          error:
-            "Tempo de execução inválido.",
-        },
-        {
-          status:
-            400,
-        }
+      return failureResponse(
+        decision
       );
     }
 
-    let score =
-      0;
-
-    const detailedAnswers =
-      officialQuestions.map(
-        (
-          question
-        ) => {
-          const answer =
-            answerMap.get(
-              question.id
-            );
-
-          if (
-            !answer
-          ) {
-            throw new Error(
-              "Resposta obrigatória ausente."
-            );
-          }
-
-          const options =
-            parseSimulationQuestionOptions(
-              question.options
-            );
-
-          if (
-            answer.selectedOption !==
-              null &&
-            answer.selectedOption >=
-              options.length
-          ) {
-            throw new Error(
-              "Alternativa selecionada inválida."
-            );
-          }
-
-          const isCorrect =
-            answer.selectedOption !==
-              null &&
-            answer.selectedOption ===
-              question.correctAnswer;
-
-          if (
-            isCorrect
-          ) {
-            score +=
-              1;
-          }
-
-          return {
-            questionId:
-              question.id,
-
-            subject:
-              question.subject,
-
-            questionText:
-              question.questionText,
-
-            options,
-
-            selectedOption:
-              answer.selectedOption,
-
-            correctAnswer:
-              question.correctAnswer,
-
-            isCorrect,
-
-            explanation:
-              question.explanation,
-          };
-        }
-      );
-
-    const sanitizedAnswers =
-      detailedAnswers.map(
-        (
-          answer
-        ) => ({
-          questionId:
-            answer.questionId,
-
-          selectedOption:
-            answer.selectedOption,
-        })
-      );
-
-    const completedAt =
-      new Date()
-        .toISOString();
 
     /**
-     * Snapshot histórico imutável.
+     * O resultado já foi persistido e a tentativa
+     * marcada como completed dentro de uma única
+     * transação SQLite.
      *
-     * Ele é persistido apenas no servidor.
-     * Alterações futuras no banco de questões não
-     * reescrevem esta tentativa.
+     * Ranking é calculado somente depois do commit.
      */
-    const snapshot =
-      {
-        version:
-          1,
-
-        simulation: {
-          id:
-            simulation.id,
-
-          title:
-            simulation.title,
-
-          bank:
-            simulation.bank,
-
-          timeLimit:
-            simulation.timeLimit,
-        },
-
-        completedAt,
-
-        questions:
-          detailedAnswers,
-      };
-
-    const inserted =
-      await db
-        .insert(
-          simulationResults
-        )
-        .values({
-          userId:
-            user.id,
-
-          simulationId,
-
-          score,
-
-          totalQuestions:
-            officialQuestions.length,
-
-          timeSpent:
-            submitted.timeSpent,
-
-          answers:
-            JSON.stringify(
-              sanitizedAnswers
-            ),
-
-          snapshot:
-            JSON.stringify(
-              snapshot
-            ),
-
-          completedAt,
-        })
-        .returning();
-
-    /**
-     * Ranking:
-     *
-     * timeSpent ainda é medido no navegador na versão
-     * atual, portanto NÃO será usado como critério
-     * autoritativo de desempate.
-     *
-     * O tracking server-side da tentativa entra na 4.3.
-     */
-    const rankingRows =
-      await db
-        .select({
-          userId:
-            users.id,
-
-          userName:
-            users.name,
-
-          score:
-            simulationResults.score,
-
-          totalQuestions:
-            simulationResults.totalQuestions,
-
-          timeSpent:
-            simulationResults.timeSpent,
-
-          completedAt:
-            simulationResults.completedAt,
-        })
-        .from(
-          simulationResults
-        )
-        .innerJoin(
-          users,
-          eq(
-            simulationResults.userId,
-            users.id
-          )
-        )
-        .where(
-          eq(
-            simulationResults.simulationId,
-            simulationId
-          )
-        )
-        .all();
-
-    rankingRows.sort(
-      (
-        a,
-        b
-      ) => {
-        if (
-          b.score !==
-          a.score
-        ) {
-          return (
-            b.score -
-            a.score
-          );
-        }
-
-        return a.completedAt
-          .localeCompare(
-            b.completedAt
-          );
-      }
-    );
-
-    /**
-     * Ranking considera a melhor tentativa
-     * de cada usuário.
-     */
-    const bestByUser =
-      [];
-
-    const seenUsers =
-      new Set<number>();
-
-    for (
-      const row of
-        rankingRows
-    ) {
-      if (
-        seenUsers.has(
-          row.userId
-        )
-      ) {
-        continue;
-      }
-
-      seenUsers.add(
-        row.userId
+    const rankingData =
+      await getSimulationRanking(
+        simulationId,
+        user.id
       );
 
-      bestByUser.push(
-        row
-      );
-    }
-
-    const userPosition =
-      bestByUser.findIndex(
-        (
-          row
-        ) =>
-          row.userId ===
-          user.id
-      ) +
-      1;
-
-    const ranking =
-      bestByUser
-        .slice(
-          0,
-          20
-        )
-        .map(
-          (
-            row,
-            index
-          ) => ({
-            position:
-              index +
-              1,
-
-            name:
-              row.userName
-                ?.trim() ||
-              "Aluno",
-
-            score:
-              row.score,
-
-            totalQuestions:
-              row.totalQuestions,
-
-            timeSpent:
-              row.timeSpent,
-
-            completedAt:
-              row.completedAt,
-
-            isCurrentUser:
-              row.userId ===
-              user.id,
-          })
-        );
-
-    const savedResult =
-      inserted[0];
 
     return NextResponse.json(
       {
-        /**
-         * Não retornamos snapshot/answers crus.
-         */
         result: {
           id:
-            savedResult.id,
+            decision.result.id,
 
           score:
-            savedResult.score,
+            decision.result.score,
 
           totalQuestions:
-            savedResult.totalQuestions,
+            decision
+              .result
+              .totalQuestions,
 
           timeSpent:
-            savedResult.timeSpent,
+            decision
+              .result
+              .timeSpent,
 
           completedAt:
-            savedResult.completedAt,
+            decision
+              .result
+              .completedAt,
         },
 
-        score,
+        score:
+          decision.result.score,
 
         totalQuestions:
-          officialQuestions.length,
-
-        timeSpent:
-          submitted.timeSpent,
-
-        percentage:
-          Math.round(
-            (
-              score /
-              officialQuestions.length
-            ) *
-              100
-          ),
+          decision
+            .result
+            .totalQuestions,
 
         /**
-         * Após a submissão o gabarito pode ser
-         * revelado para revisão.
+         * Tempo calculado exclusivamente
+         * pelo servidor.
          */
-        detailedAnswers,
+        timeSpent:
+          decision
+            .result
+            .timeSpent,
 
-        ranking,
+        percentage:
+          decision
+            .result
+            .percentage,
 
-        userPosition,
+        /**
+         * Gabarito somente depois da conclusão.
+         */
+        detailedAnswers:
+          decision
+            .result
+            .detailedAnswers,
+
+        ranking:
+          rankingData.ranking,
+
+        userPosition:
+          rankingData.userPosition,
+
+        totalParticipants:
+          rankingData.totalParticipants,
       },
       {
         headers: {
@@ -982,32 +358,11 @@ export async function POST(
   } catch (
     error
   ) {
-    if (
-      error instanceof
-      Error &&
-    (
-      error.message ===
-        "Resposta obrigatória ausente." ||
-      error.message ===
-        "Alternativa selecionada inválida."
-    )
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            error.message,
-        },
-        {
-          status:
-            400,
-        }
-      );
-    }
-
     console.error(
       "Erro ao submeter simulado:",
       error
     );
+
 
     return NextResponse.json(
       {

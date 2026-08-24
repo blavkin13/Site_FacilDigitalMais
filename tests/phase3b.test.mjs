@@ -372,7 +372,7 @@ describe(
     test(
       "API submit retorna ranking",
       async () => {
-        const content =
+        const routeSource =
           await readFile(
             join(
               process.cwd(),
@@ -383,32 +383,139 @@ describe(
               "submit",
               "route.ts"
             ),
-            "utf-8"
+            "utf8"
           );
 
 
-        const expectedContent = [
-          "ranking",
-          "userPosition",
-          "detailedAnswers",
-          "isCorrect",
-        ];
-
-
-        for (
-          const item of expectedContent
-        ) {
-          assert.ok(
-            content.includes(
-              item
+        const submitServiceSource =
+          await readFile(
+            join(
+              process.cwd(),
+              "lib",
+              "simulation-attempt-submit.ts"
             ),
-            `API submit deve conter ${item}`
+            "utf8"
           );
-        }
+
+
+        /**
+         * A partir da Fase 4.3B, a rota ficou fina:
+         *
+         * - autentica;
+         * - chama o serviço transacional;
+         * - calcula ranking após o commit;
+         * - devolve o resultado.
+         *
+         * A correção das questões não deve mais
+         * viver diretamente dentro da route.
+         */
+        assert.ok(
+          routeSource.includes(
+            "finalizeSimulationAttempt"
+          ),
+          "API submit deve usar o finalizador server-side da tentativa"
+        );
+
+
+        assert.ok(
+          routeSource.includes(
+            "getSimulationRanking"
+          ),
+          "API submit deve calcular ranking"
+        );
+
+
+        assert.ok(
+          routeSource.includes(
+            "ranking:"
+          ),
+          "API submit deve retornar ranking"
+        );
+
+
+        assert.ok(
+          routeSource.includes(
+            "userPosition"
+          ),
+          "API submit deve retornar posição do usuário"
+        );
+
+
+        assert.ok(
+          routeSource.includes(
+            "totalParticipants"
+          ),
+          "API submit deve retornar total de participantes"
+        );
+
+
+        assert.ok(
+          routeSource.includes(
+            "detailedAnswers"
+          ),
+          "API submit deve retornar revisão detalhada após a conclusão"
+        );
+
+
+        /**
+         * isCorrect agora pertence ao domínio da
+         * correção transacional, não à camada HTTP.
+         */
+        assert.ok(
+          submitServiceSource.includes(
+            "isCorrect"
+          ),
+          "Serviço de finalização deve calcular isCorrect"
+        );
+
+
+        assert.ok(
+          submitServiceSource.includes(
+            "correctAnswer"
+          ),
+          "Serviço de finalização deve usar o gabarito oficial do snapshot"
+        );
+
+
+        assert.ok(
+          submitServiceSource.includes(
+            "detailedAnswers"
+          ),
+          "Serviço de finalização deve produzir revisão detalhada"
+        );
+
+
+        /**
+         * Proteção contra regressão:
+         * score e tempo não podem voltar a ser
+         * confiados ao navegador.
+         */
+        assert.ok(
+          submitServiceSource.includes(
+            '"attemptToken"'
+          ),
+          "Submit deve exigir attemptToken"
+        );
+
+
+        assert.ok(
+          submitServiceSource.includes(
+            '"answers"'
+          ),
+          "Submit deve aceitar respostas do aluno"
+        );
+
+
+        assert.ok(
+          submitServiceSource.includes(
+            "calculateServerTimeSpent"
+          ),
+          "Tempo deve ser calculado server-side"
+        );
 
 
         console.log(
-          "✅ API submit tem ranking e detalhes"
+          "✅ API submit usa correção transacional e retorna ranking"
         );
       }
     );

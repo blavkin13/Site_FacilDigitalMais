@@ -86,6 +86,7 @@ describe(
 
     let listRoute;
     let detailRoute;
+    let startAttemptRoute;
     let submitRoute;
 
 
@@ -105,6 +106,52 @@ describe(
             relatedOrderId
           )
         );
+    }
+
+    async function startAttemptToken() {
+      const response =
+        await startAttemptRoute.POST(
+          request({
+            path:
+              `/api/simulations/${simulationId}/attempts`,
+
+            method:
+              "POST",
+
+            token:
+              userToken,
+          }),
+          {
+            params:
+              Promise.resolve({
+                id:
+                  String(
+                    simulationId
+                  ),
+              }),
+          }
+        );
+
+
+      assert.ok(
+        response.status ===
+          200 ||
+        response.status ===
+          201
+      );
+
+
+      const data =
+        await response.json();
+
+
+      assert.match(
+        data.attempt.token,
+        /^[a-f0-9]{64}$/
+      );
+
+
+      return data.attempt.token;
     }
 
 
@@ -490,6 +537,11 @@ describe(
             "../app/api/simulations/[id]/route.ts"
           );
 
+        startAttemptRoute =
+          await import(
+            "../app/api/simulations/[id]/attempts/route.ts"
+          );
+
         submitRoute =
           await import(
             "../app/api/simulations/[id]/submit/route.ts"
@@ -659,13 +711,18 @@ describe(
 
 
     test(
-      "submit deve rejeitar score enviado pelo cliente",
+      "submit deve rejeitar score e tempo enviados pelo cliente",
       async () => {
         await setRelatedOrderStatus(
           "approved"
         );
 
-        const response =
+
+        const attemptToken =
+          await startAttemptToken();
+
+
+        const scoreResponse =
           await submitRoute.POST(
             request({
               path:
@@ -678,6 +735,8 @@ describe(
                 userToken,
 
               body: {
+                attemptToken,
+
                 score:
                   999,
 
@@ -698,9 +757,6 @@ describe(
                       0,
                   },
                 ],
-
-                timeSpent:
-                  30,
               },
             }),
             {
@@ -714,8 +770,64 @@ describe(
             }
           );
 
+
         assert.equal(
-          response.status,
+          scoreResponse.status,
+          400
+        );
+
+
+        const timeResponse =
+          await submitRoute.POST(
+            request({
+              path:
+                `/api/simulations/${simulationId}/submit`,
+
+              method:
+                "POST",
+
+              token:
+                userToken,
+
+              body: {
+                attemptToken,
+
+                timeSpent:
+                  1,
+
+                answers: [
+                  {
+                    questionId:
+                      question1Id,
+
+                    selectedOption:
+                      1,
+                  },
+
+                  {
+                    questionId:
+                      question2Id,
+
+                    selectedOption:
+                      0,
+                  },
+                ],
+              },
+            }),
+            {
+              params:
+                Promise.resolve({
+                  id:
+                    String(
+                      simulationId
+                    ),
+                }),
+            }
+          );
+
+
+        assert.equal(
+          timeResponse.status,
           400
         );
       }
@@ -723,11 +835,16 @@ describe(
 
 
     test(
-      "submit deve rejeitar questão que não pertence ao simulado",
+      "submit deve rejeitar questão que não pertence ao snapshot da tentativa",
       async () => {
         await setRelatedOrderStatus(
           "approved"
         );
+
+
+        const attemptToken =
+          await startAttemptToken();
+
 
         const response =
           await submitRoute.POST(
@@ -742,6 +859,8 @@ describe(
                 userToken,
 
               body: {
+                attemptToken,
+
                 answers: [
                   {
                     questionId:
@@ -759,9 +878,6 @@ describe(
                       0,
                   },
                 ],
-
-                timeSpent:
-                  30,
               },
             }),
             {
@@ -775,6 +891,7 @@ describe(
             }
           );
 
+
         assert.equal(
           response.status,
           400
@@ -784,11 +901,16 @@ describe(
 
 
     test(
-      "submit deve calcular score oficial e persistir snapshot",
+      "submit deve calcular score pelo snapshot e persistir attempt_id",
       async () => {
         await setRelatedOrderStatus(
           "approved"
         );
+
+
+        const attemptToken =
+          await startAttemptToken();
+
 
         const response =
           await submitRoute.POST(
@@ -803,6 +925,8 @@ describe(
                 userToken,
 
               body: {
+                attemptToken,
+
                 answers: [
                   {
                     questionId:
@@ -820,9 +944,6 @@ describe(
                       null,
                   },
                 ],
-
-                timeSpent:
-                  45,
               },
             }),
             {
@@ -836,28 +957,41 @@ describe(
             }
           );
 
+
         assert.equal(
           response.status,
           200
         );
 
+
         const data =
           await response.json();
+
 
         assert.equal(
           data.score,
           1
         );
 
+
         assert.equal(
           data.totalQuestions,
           2
         );
 
+
         assert.equal(
           data.percentage,
           50
         );
+
+
+        assert.ok(
+          Number.isInteger(
+            data.timeSpent
+          )
+        );
+
 
         const results =
           await db
@@ -873,34 +1007,52 @@ describe(
             )
             .all();
 
+
         assert.equal(
           results.length,
           1
         );
 
+
+        assert.ok(
+          results[0].attemptId
+        );
+
+
         assert.ok(
           results[0].snapshot
         );
+
 
         const snapshot =
           JSON.parse(
             results[0].snapshot
           );
 
+
         assert.equal(
           snapshot.version,
-          1
+          2
         );
+
+
+        assert.equal(
+          snapshot.attempt.id,
+          results[0].attemptId
+        );
+
 
         assert.equal(
           snapshot.questions.length,
           2
         );
 
+
         assert.equal(
           snapshot.questions[0].questionId,
           question1Id
         );
+
 
         assert.equal(
           snapshot.questions[0].correctAnswer,
@@ -911,11 +1063,21 @@ describe(
 
 
     test(
-      "refund deve revogar detalhe e novas submissões",
+      "refund deve revogar detalhe e tentativa aberta no submit",
       async () => {
+        await setRelatedOrderStatus(
+          "approved"
+        );
+
+
+        const attemptToken =
+          await startAttemptToken();
+
+
         await setRelatedOrderStatus(
           "refunded"
         );
+
 
         const detailResponse =
           await detailRoute.GET(
@@ -937,10 +1099,12 @@ describe(
             }
           );
 
+
         assert.equal(
           detailResponse.status,
           403
         );
+
 
         const submitResponse =
           await submitRoute.POST(
@@ -955,6 +1119,8 @@ describe(
                 userToken,
 
               body: {
+                attemptToken,
+
                 answers: [
                   {
                     questionId:
@@ -972,9 +1138,6 @@ describe(
                       0,
                   },
                 ],
-
-                timeSpent:
-                  20,
               },
             }),
             {
@@ -987,6 +1150,7 @@ describe(
                 }),
             }
           );
+
 
         assert.equal(
           submitResponse.status,
