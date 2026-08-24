@@ -59,7 +59,8 @@
     "test:phase4-admin-ui": "npm run test:phase4-admin-ui-foundation && npm run test:phase4-admin-builder",
     "test:phase4e-attempts": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4e-server-attempts.test.mjs",
     "test:phase4f-submit": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4f-secure-submit.test.mjs",
-    "test:phase4-student-security": "npm run test:phase4e-attempts && npm run test:phase4f-submit",
+    "test:phase4g-results": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4g-persistent-results.test.mjs",
+    "test:phase4-student-security": "npm run test:phase4e-attempts && npm run test:phase4f-submit && npm run test:phase4g-results",
     "test:production-build": "rm -rf .next && next build",
     "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:phase3b-admin-ui test:phase3c test:phase3d test:phase3e test:phase4-backend test:phase4-admin-ui test:phase4-student-security test:production-build",
     "validate": "node scripts/validate-all.mjs"

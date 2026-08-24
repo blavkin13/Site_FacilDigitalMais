@@ -1378,6 +1378,7 @@ export async function getSimulationRanking(
           ON u.id = r.user_id
         WHERE
           r.simulation_id = ?
+          AND r.total_questions > 0
       `)
       .all(
         simulationId
@@ -1389,14 +1390,36 @@ export async function getSimulationRanking(
       a,
       b
     ) => {
-      if (
-        b.score !==
-        a.score
-      ) {
-        return (
-          b.score -
-          a.score
+      /**
+       * O número de questões de um simulado pode
+       * mudar entre versões.
+       *
+       * Portanto o critério primário precisa ser
+       * percentual, não score absoluto.
+       *
+       * A comparação cruzada evita erros de
+       * arredondamento:
+       *
+       * b.score / b.total
+       * versus
+       * a.score / a.total
+       */
+      const percentageComparison =
+        (
+          b.score *
+          a.totalQuestions
+        ) -
+        (
+          a.score *
+          b.totalQuestions
         );
+
+
+      if (
+        percentageComparison !==
+        0
+      ) {
+        return percentageComparison;
       }
 
 
@@ -1404,33 +1427,15 @@ export async function getSimulationRanking(
         a.attemptId !==
         null;
 
+
       const bAuthoritative =
         b.attemptId !==
         null;
 
 
       /**
-       * Tempo só pode desempatar quando ambos
-       * os resultados vieram de attempts
-       * server-side.
-       */
-      if (
-        aAuthoritative &&
-        bAuthoritative &&
-        a.timeSpent !==
-          b.timeSpent
-      ) {
-        return (
-          a.timeSpent -
-          b.timeSpent
-        );
-      }
-
-
-      /**
-       * Em igualdade de nota, um resultado
-       * server-side é preferido a um resultado
-       * legado cujo tempo veio do navegador.
+       * Se apenas um resultado possui tempo
+       * server-side, ele é preferido ao legado.
        */
       if (
         aAuthoritative !==
@@ -1442,6 +1447,42 @@ export async function getSimulationRanking(
       }
 
 
+      /**
+       * Tempo desempata somente entre duas
+       * tentativas server-side.
+       *
+       * Como versões históricas podem possuir
+       * quantidades diferentes de questões,
+       * comparamos segundos médios por questão.
+       */
+      if (
+        aAuthoritative &&
+        bAuthoritative
+      ) {
+        const normalizedTimeComparison =
+          (
+            a.timeSpent *
+            b.totalQuestions
+          ) -
+          (
+            b.timeSpent *
+            a.totalQuestions
+          );
+
+
+        if (
+          normalizedTimeComparison !==
+          0
+        ) {
+          return normalizedTimeComparison;
+        }
+      }
+
+
+      /**
+       * Último desempate determinístico:
+       * quem concluiu primeiro.
+       */
       return a.completedAt.localeCompare(
         b.completedAt
       );
@@ -1449,6 +1490,11 @@ export async function getSimulationRanking(
   );
 
 
+  /**
+   * Como as linhas já estão na ordem oficial,
+   * a primeira ocorrência de cada usuário é
+   * sua melhor tentativa.
+   */
   const bestByUser:
     RankingDatabaseRow[] =
     [];
@@ -1474,6 +1520,7 @@ export async function getSimulationRanking(
     seenUsers.add(
       row.userId
     );
+
 
     bestByUser.push(
       row

@@ -920,34 +920,52 @@ export function SimulationQuiz({
       if (
         response.ok
       ) {
+        /**
+         * O servidor já persistiu o resultado.
+         *
+         * sessionStorage continua sendo usado apenas
+         * durante uma tentativa aberta para recuperar
+         * respostas locais após F5.
+         *
+         * Resultado concluído não depende mais do
+         * navegador.
+         */
+        const resultId =
+          Number(
+            data
+              ?.result
+              ?.id
+          );
+
+
         clearAttemptStorage(
           attempt.token
         );
 
 
-        sessionStorage.setItem(
-          `sim_result_${simulation.id}`,
-          JSON.stringify({
-            ...data,
+        if (
+          !Number.isInteger(
+            resultId
+          ) ||
+          resultId <=
+            0
+        ) {
+          setAttempt(
+            null
+          );
 
-            simulationTitle:
-              attempt
-                .simulation
-                .title,
+          setActionError(
+            "O simulado foi concluído, mas o servidor não retornou o identificador do resultado."
+          );
 
-            simulationBank:
-              attempt
-                .simulation
-                .bank,
+          return;
+        }
 
-            timeUp,
-          })
+
+        router.replace(
+          `/simulados/${simulation.id}/resultado/${resultId}`
         );
 
-
-        router.push(
-          `/simulados/${simulation.id}/resultado`
-        );
 
         return;
       }
