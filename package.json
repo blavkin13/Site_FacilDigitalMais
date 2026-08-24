@@ -52,11 +52,14 @@
     "test:phase4a-simulations": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4a-simulation-foundation.test.mjs",
     "test:phase4b-admin-backend": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4b-admin-simulations.test.mjs",
     "test:phase4c-api-security": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4c-simulation-api-security.test.mjs",
+    "test:phase4d-seed": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4d-simulation-seed.test.mjs",
     "test:phase4-backend": "npm run test:phase4a-simulations && npm run test:phase4b-admin-backend && npm run test:phase4c-api-security && npm run test:phase4d-seed",
+    "test:phase4-admin-ui-foundation": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4-admin-ui-foundation.test.mjs",
+    "test:phase4-admin-builder": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4-admin-builder.test.mjs",
+    "test:phase4-admin-ui": "npm run test:phase4-admin-ui-foundation && npm run test:phase4-admin-builder",
     "test:production-build": "rm -rf .next && next build",
-    "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:phase3b-admin-ui test:phase3c test:phase3d test:phase3e test:phase4-backend test:production-build",
-    "validate": "node scripts/validate-all.mjs",
-    "test:phase4d-seed": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4d-simulation-seed.test.mjs"
+    "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:phase3b-admin-ui test:phase3c test:phase3d test:phase3e test:phase4-backend test:phase4-admin-ui test:production-build",
+    "validate": "node scripts/validate-all.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

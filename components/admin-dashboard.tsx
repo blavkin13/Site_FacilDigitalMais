@@ -32,6 +32,10 @@ import {
 } from "./admin-apostilas";
 
 import {
+  AdminSimulados,
+} from "./admin-simulados";
+
+import {
   useAuth,
 } from "./auth-provider";
 
@@ -80,7 +84,8 @@ interface Stats {
 type AdminTab =
   | "overview"
   | "orders"
-  | "apostilas";
+  | "apostilas"
+  | "simulados";
 
 
 const CHART_COLORS = [
@@ -352,6 +357,24 @@ export function AdminDashboard() {
             }
           >
             📚 Apostilas
+          </button>
+
+          <button
+            type="button"
+            className={
+              activeTab ===
+              "simulados"
+                ? "active"
+                : ""
+            }
+            onClick={
+              () =>
+                setActiveTab(
+                  "simulados"
+                )
+            }
+          >
+            📝 Simulados
           </button>
 
           <hr />
@@ -787,6 +810,11 @@ export function AdminDashboard() {
           {activeTab ===
             "apostilas" && (
             <AdminApostilas />
+          )}
+
+          {activeTab ===
+            "simulados" && (
+            <AdminSimulados />
           )}
         </div>
       </section>
