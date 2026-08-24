@@ -370,7 +370,7 @@ describe(
 
 
     test(
-      "API submit retorna ranking",
+      "API submit finaliza e deixa resultado completo para endpoint owner-only",
       async () => {
         const routeSource =
           await readFile(
@@ -399,73 +399,73 @@ describe(
 
 
         /**
-         * A partir da Fase 4.3B, a rota ficou fina:
-         *
-         * - autentica;
-         * - chama o serviço transacional;
-         * - calcula ranking após o commit;
-         * - devolve o resultado.
-         *
-         * A correção das questões não deve mais
-         * viver diretamente dentro da route.
+         * A camada HTTP apenas autentica e delega
+         * a finalização transacional.
          */
         assert.ok(
           routeSource.includes(
             "finalizeSimulationAttempt"
           ),
-          "API submit deve usar o finalizador server-side da tentativa"
-        );
-
-
-        assert.ok(
-          routeSource.includes(
-            "getSimulationRanking"
-          ),
-          "API submit deve calcular ranking"
-        );
-
-
-        assert.ok(
-          routeSource.includes(
-            "ranking:"
-          ),
-          "API submit deve retornar ranking"
-        );
-
-
-        assert.ok(
-          routeSource.includes(
-            "userPosition"
-          ),
-          "API submit deve retornar posição do usuário"
-        );
-
-
-        assert.ok(
-          routeSource.includes(
-            "totalParticipants"
-          ),
-          "API submit deve retornar total de participantes"
-        );
-
-
-        assert.ok(
-          routeSource.includes(
-            "detailedAnswers"
-          ),
-          "API submit deve retornar revisão detalhada após a conclusão"
+          "API submit deve usar o finalizador server-side"
         );
 
 
         /**
-         * isCorrect agora pertence ao domínio da
-         * correção transacional, não à camada HTTP.
+         * Desde a 4.4B.2B, ranking e revisão não são
+         * mais duplicados na resposta POST.
+         *
+         * O cliente recebe result.id e consulta depois
+         * o endpoint owner-only do resultado.
+         */
+        assert.equal(
+          routeSource.includes(
+            "getSimulationRanking"
+          ),
+          false,
+          "API submit não deve calcular ranking para a resposta HTTP"
+        );
+
+
+        assert.equal(
+          routeSource.includes(
+            "detailedAnswers"
+          ),
+          false,
+          "API submit não deve devolver revisão detalhada"
+        );
+
+
+        assert.equal(
+          routeSource.includes(
+            "ranking:"
+          ),
+          false,
+          "API submit não deve devolver ranking"
+        );
+
+
+        assert.ok(
+          routeSource.includes(
+            "decision"
+          ) &&
+          routeSource.includes(
+            ".result"
+          ) &&
+          routeSource.includes(
+            ".id"
+          ),
+          "API submit deve devolver o identificador persistente do resultado"
+        );
+
+
+        /**
+         * A correção permanece no serviço transacional.
          */
         assert.ok(
           submitServiceSource.includes(
             "isCorrect"
           ),
-          "Serviço de finalização deve calcular isCorrect"
+          "Serviço deve calcular isCorrect"
         );
 
 
@@ -473,7 +473,7 @@ describe(
           submitServiceSource.includes(
             "correctAnswer"
           ),
-          "Serviço de finalização deve usar o gabarito oficial do snapshot"
+          "Serviço deve utilizar o gabarito do snapshot"
         );
 
 
@@ -481,15 +481,10 @@ describe(
           submitServiceSource.includes(
             "detailedAnswers"
           ),
-          "Serviço de finalização deve produzir revisão detalhada"
+          "Serviço deve persistir revisão detalhada"
         );
 
 
-        /**
-         * Proteção contra regressão:
-         * score e tempo não podem voltar a ser
-         * confiados ao navegador.
-         */
         assert.ok(
           submitServiceSource.includes(
             '"attemptToken"'
@@ -510,12 +505,12 @@ describe(
           submitServiceSource.includes(
             "calculateServerTimeSpent"
           ),
-          "Tempo deve ser calculado server-side"
+          "Tempo deve continuar sendo calculado server-side"
         );
 
 
         console.log(
-          "✅ API submit usa correção transacional e retorna ranking"
+          "✅ API submit usa resposta mínima e resultado owner-only"
         );
       }
     );

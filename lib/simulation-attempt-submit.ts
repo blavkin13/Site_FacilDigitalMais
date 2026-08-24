@@ -149,6 +149,16 @@ export type SimulationRankingEntry = {
   position:
     number;
 
+  /**
+   * Nenhum nome real precisa sair do servidor.
+   *
+   * Valores possíveis:
+   *
+   * Você
+   * Aluno 2
+   * Aluno 3
+   * ...
+   */
   name:
     string;
 
@@ -158,11 +168,21 @@ export type SimulationRankingEntry = {
   totalQuestions:
     number;
 
-  timeSpent:
+  percentage:
     number;
 
-  completedAt:
-    string;
+  /**
+   * Resultados legados não possuem relógio
+   * server-side autoritativo.
+   *
+   * Nestes casos não exibimos o tempo no
+   * ranking público.
+   */
+  timeSpent:
+    number | null;
+
+  authoritativeTime:
+    boolean;
 
   isCurrentUser:
     boolean;
@@ -1329,9 +1349,6 @@ type RankingDatabaseRow = {
   userId:
     number;
 
-  userName:
-    string | null;
-
   score:
     number;
 
@@ -1362,20 +1379,35 @@ export async function getSimulationRanking(
     getSqliteConnection();
 
 
+  /**
+   * PRIVACIDADE POR DESIGN
+   *
+   * Não fazemos JOIN com users.
+   *
+   * Para classificar participantes precisamos
+   * exclusivamente de:
+   *
+   * - user_id internamente;
+   * - score;
+   * - quantidade de questões;
+   * - tempo;
+   * - data interna de desempate;
+   * - presença de attempt_id.
+   *
+   * Nome, email, CPF e telefone nunca entram
+   * nesta consulta.
+   */
   const rows =
     sqlite
       .prepare(`
         SELECT
           r.user_id AS userId,
-          u.name AS userName,
           r.score AS score,
           r.total_questions AS totalQuestions,
           r.time_spent AS timeSpent,
           r.completed_at AS completedAt,
           r.attempt_id AS attemptId
         FROM simulation_results r
-        INNER JOIN users u
-          ON u.id = r.user_id
         WHERE
           r.simulation_id = ?
           AND r.total_questions > 0
@@ -1391,18 +1423,12 @@ export async function getSimulationRanking(
       b
     ) => {
       /**
-       * O número de questões de um simulado pode
-       * mudar entre versões.
+       * Critério principal:
        *
-       * Portanto o critério primário precisa ser
-       * percentual, não score absoluto.
+       * percentual.
        *
-       * A comparação cruzada evita erros de
-       * arredondamento:
-       *
-       * b.score / b.total
-       * versus
-       * a.score / a.total
+       * Comparação cruzada evita erro de
+       * arredondamento.
        */
       const percentageComparison =
         (
@@ -1434,8 +1460,9 @@ export async function getSimulationRanking(
 
 
       /**
-       * Se apenas um resultado possui tempo
-       * server-side, ele é preferido ao legado.
+       * Em igualdade de percentual, preferimos
+       * um resultado cuja medição de tempo seja
+       * server-side.
        */
       if (
         aAuthoritative !==
@@ -1448,12 +1475,13 @@ export async function getSimulationRanking(
 
 
       /**
-       * Tempo desempata somente entre duas
-       * tentativas server-side.
+       * Tempo somente desempata duas tentativas
+       * cuja medição é autoritativa.
        *
-       * Como versões históricas podem possuir
-       * quantidades diferentes de questões,
-       * comparamos segundos médios por questão.
+       * Como versões do simulado podem possuir
+       * números diferentes de questões,
+       * comparamos segundos por questão usando
+       * multiplicação cruzada.
        */
       if (
         aAuthoritative &&
@@ -1480,8 +1508,10 @@ export async function getSimulationRanking(
 
 
       /**
-       * Último desempate determinístico:
-       * quem concluiu primeiro.
+       * completedAt é utilizado apenas como
+       * desempate interno determinístico.
+       *
+       * Ele NÃO será enviado no ranking público.
        */
       return a.completedAt.localeCompare(
         b.completedAt
@@ -1491,9 +1521,8 @@ export async function getSimulationRanking(
 
 
   /**
-   * Como as linhas já estão na ordem oficial,
-   * a primeira ocorrência de cada usuário é
-   * sua melhor tentativa.
+   * A primeira linha de cada usuário depois da
+   * ordenação representa sua melhor tentativa.
    */
   const bestByUser:
     RankingDatabaseRow[] =
@@ -1549,32 +1578,65 @@ export async function getSimulationRanking(
         (
           row,
           index
-        ) => ({
-          position:
+        ) => {
+          const position =
             index +
-            1,
+            1;
 
-          name:
-            row.userName
-              ?.trim() ||
-            "Aluno",
 
-          score:
-            row.score,
-
-          totalQuestions:
-            row.totalQuestions,
-
-          timeSpent:
-            row.timeSpent,
-
-          completedAt:
-            row.completedAt,
-
-          isCurrentUser:
+          const isCurrentUser =
             row.userId ===
-            currentUserId,
-        })
+            currentUserId;
+
+
+          const authoritativeTime =
+            row.attemptId !==
+            null;
+
+
+          return {
+            position,
+
+            /**
+             * Não utilizamos user.name.
+             *
+             * Assim nenhuma PII de outro aluno
+             * precisa sair do servidor.
+             */
+            name:
+              isCurrentUser
+                ? "Você"
+                : `Aluno ${position}`,
+
+            score:
+              row.score,
+
+            totalQuestions:
+              row.totalQuestions,
+
+            percentage:
+              Math.round(
+                (
+                  row.score /
+                  row.totalQuestions
+                ) *
+                  100
+              ),
+
+            /**
+             * Tempo legado não deve parecer
+             * autoritativo na interface.
+             */
+            timeSpent:
+              authoritativeTime
+                ? row.timeSpent
+                : null,
+
+            authoritativeTime,
+
+            isCurrentUser,
+          };
+        }
       );
 
 
@@ -1583,7 +1645,7 @@ export async function getSimulationRanking(
 
     userPosition:
       userIndex >=
-      0
+        0
         ? userIndex +
           1
         : 0,

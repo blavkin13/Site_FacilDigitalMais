@@ -634,11 +634,12 @@ describe(
 
 
     test(
-      "GET do simulado não deve expor gabarito nem explicação",
+      "GET do simulado deve retornar somente metadados antes do início",
       async () => {
         await setRelatedOrderStatus(
           "approved"
         );
+
 
         const response =
           await detailRoute.GET(
@@ -660,51 +661,83 @@ describe(
             }
           );
 
+
         assert.equal(
           response.status,
           200
         );
 
+
         const data =
           await response.json();
 
+
+        assert.ok(
+          data.simulation
+        );
+
+
         assert.equal(
-          data.questions.length,
+          data.simulation.id,
+          simulationId
+        );
+
+
+        assert.equal(
+          data.simulation.totalQuestions,
           2
         );
 
-        for (
-          const question of
-            data.questions
-        ) {
-          assert.equal(
-            Object.hasOwn(
-              question,
-              "correctAnswer"
-            ),
-            false
-          );
 
-          assert.equal(
-            Object.hasOwn(
-              question,
-              "explanation"
-            ),
-            false
-          );
-        }
-
-        assert.deepEqual(
-          data.questions.map(
-            (
-              question
-            ) =>
-              question.id
+        /**
+         * As questões somente podem sair do servidor
+         * depois que uma attempt inicia o cronômetro.
+         */
+        assert.equal(
+          Object.hasOwn(
+            data,
+            "questions"
           ),
-          [
-            question1Id,
-            question2Id,
-          ]
+          false
+        );
+
+
+        assert.equal(
+          Object.hasOwn(
+            data,
+            "userHistory"
+          ),
+          false
+        );
+
+
+        const serialized =
+          JSON.stringify(
+            data
+          );
+
+
+        assert.equal(
+          serialized.includes(
+            "Questão oficial 1."
+          ),
+          false
+        );
+
+
+        assert.equal(
+          serialized.includes(
+            "correctAnswer"
+          ),
+          false
+        );
+
+
+        assert.equal(
+          serialized.includes(
+            "explanation"
+          ),
+          false
         );
       }
     );
@@ -968,27 +1001,44 @@ describe(
           await response.json();
 
 
+        /**
+         * Desde a 4.4B.2B o POST /submit possui
+         * resposta mínima.
+         *
+         * Score, tempo e revisão ficam disponíveis
+         * somente através do resultado persistente
+         * owner-only.
+         */
         assert.equal(
-          data.score,
-          1
+          data.success,
+          true
         );
 
 
-        assert.equal(
-          data.totalQuestions,
-          2
+        assert.deepEqual(
+          Object.keys(
+            data
+          ).sort(),
+          [
+            "result",
+            "success",
+          ]
         );
 
 
-        assert.equal(
-          data.percentage,
-          50
+        assert.deepEqual(
+          Object.keys(
+            data.result
+          ),
+          [
+            "id",
+          ]
         );
 
 
         assert.ok(
           Number.isInteger(
-            data.timeSpent
+            data.result.id
           )
         );
 
@@ -1014,19 +1064,89 @@ describe(
         );
 
 
+        const result =
+          results[0];
+
+
+        /**
+         * O ID retornado pelo submit deve apontar
+         * exatamente para o resultado persistido.
+         */
+        assert.equal(
+          result.id,
+          data.result.id
+        );
+
+
+        /**
+         * Questão 1:
+         * selectedOption = 1
+         * correctAnswer  = 1
+         *
+         * Questão 2:
+         * não respondida.
+         *
+         * Resultado oficial: 1/2 = 50%.
+         */
+        assert.equal(
+          result.score,
+          1
+        );
+
+
+        assert.equal(
+          result.totalQuestions,
+          2
+        );
+
+
+        assert.equal(
+          Math.round(
+            (
+              result.score /
+              result.totalQuestions
+            ) *
+              100
+          ),
+          50
+        );
+
+
+        /**
+         * timeSpent continua sendo produzido e
+         * persistido pelo servidor, apenas deixou de
+         * ser duplicado na resposta HTTP do submit.
+         */
         assert.ok(
-          results[0].attemptId
+          Number.isInteger(
+            result.timeSpent
+          )
         );
 
 
         assert.ok(
-          results[0].snapshot
+          result.timeSpent >=
+            0
+        );
+
+
+        /**
+         * O resultado moderno precisa estar ligado
+         * à tentativa server-side.
+         */
+        assert.ok(
+          result.attemptId
+        );
+
+
+        assert.ok(
+          result.snapshot
         );
 
 
         const snapshot =
           JSON.parse(
-            results[0].snapshot
+            result.snapshot
           );
 
 
@@ -1038,7 +1158,7 @@ describe(
 
         assert.equal(
           snapshot.attempt.id,
-          results[0].attemptId
+          result.attemptId
         );
 
 
@@ -1054,6 +1174,13 @@ describe(
         );
 
 
+        /**
+         * Confirma que a correção persistida continua
+         * baseada no snapshot congelado da tentativa.
+         *
+         * Esse dado existe no banco após conclusão;
+         * ele não volta a ser enviado pelo POST.
+         */
         assert.equal(
           snapshot.questions[0].correctAnswer,
           1

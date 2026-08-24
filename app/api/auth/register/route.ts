@@ -1,109 +1,430 @@
-import { NextRequest, NextResponse } from "next/server";
-import { registerUser, authenticateUser } from "../../../../lib/auth";
-import { initDatabase } from "../../../../db/init";
+import type {
+  NextRequest,
+} from "next/server";
 
-export async function POST(request: NextRequest) {
+import {
+  authenticateUser,
+  registerUser,
+} from "../../../../lib/auth";
+
+import {
+  initDatabase,
+} from "../../../../db/init";
+
+import {
+  privateNoStoreJson,
+  setSessionCookie,
+} from "../../../../lib/session-cookie";
+
+
+function isPlainObject(
+  value:
+    unknown
+): value is Record<
+  string,
+  unknown
+> {
+  return (
+    typeof value ===
+      "object" &&
+    value !==
+      null &&
+    !Array.isArray(
+      value
+    )
+  );
+}
+
+
+export async function POST(
+  request:
+    NextRequest
+) {
   try {
     await initDatabase();
 
-    const body = await request.json();
-    const { email, password, name, cpf, phone } = body;
 
-    // Validações
-    if (!email || !password || !name) {
-      return NextResponse.json(
-        { error: "Nome, email e senha são obrigatórios." },
-        { status: 400 }
+    let body:
+      unknown;
+
+
+    try {
+      body =
+        await request.json();
+    } catch {
+      return privateNoStoreJson(
+        {
+          error:
+            "Corpo JSON inválido.",
+        },
+        {
+          status:
+            400,
+        }
       );
     }
 
-    if (typeof email !== "string" || typeof password !== "string" || typeof name !== "string") {
-      return NextResponse.json(
-        { error: "Dados inválidos." },
-        { status: 400 }
+
+    if (
+      !isPlainObject(
+        body
+      )
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Dados inválidos.",
+        },
+        {
+          status:
+            400,
+        }
       );
     }
 
-    // Validar formato de email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: "Formato de email inválido." },
-        { status: 400 }
+
+    const {
+      email,
+      password,
+      name,
+      cpf,
+      phone,
+    } =
+      body;
+
+
+    if (
+      !email ||
+      !password ||
+      !name
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Nome, email e senha são obrigatórios.",
+        },
+        {
+          status:
+            400,
+        }
       );
     }
 
-    // Validar senha (mínimo 6 caracteres)
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: "A senha deve ter pelo menos 6 caracteres." },
-        { status: 400 }
+
+    if (
+      typeof email !==
+        "string" ||
+      typeof password !==
+        "string" ||
+      typeof name !==
+        "string"
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Dados inválidos.",
+        },
+        {
+          status:
+            400,
+        }
       );
     }
 
-    // Validar CPF (formato básico, 11 dígitos)
-    if (cpf) {
-      const cleanCpf = cpf.replace(/\D/g, "");
-      if (cleanCpf.length !== 11) {
-        return NextResponse.json(
-          { error: "CPF deve conter 11 dígitos." },
-          { status: 400 }
+
+    if (
+      cpf !==
+        undefined &&
+      cpf !==
+        null &&
+      typeof cpf !==
+        "string"
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "CPF inválido.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+
+    if (
+      phone !==
+        undefined &&
+      phone !==
+        null &&
+      typeof phone !==
+        "string"
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Telefone inválido.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+
+    const normalizedEmail =
+      email
+        .toLowerCase()
+        .trim();
+
+
+    const normalizedName =
+      name.trim();
+
+
+    if (
+      normalizedEmail.length ===
+        0 ||
+      normalizedEmail.length >
+        254 ||
+      normalizedName.length ===
+        0 ||
+      normalizedName.length >
+        120 ||
+      password.length >
+        256
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Dados inválidos.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+
+    const emailRegex =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+
+    if (
+      !emailRegex.test(
+        normalizedEmail
+      )
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Formato de email inválido.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+
+    if (
+      password.length <
+      6
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "A senha deve ter pelo menos 6 caracteres.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+
+    let cleanCpf:
+      string | undefined;
+
+
+    if (
+      typeof cpf ===
+        "string" &&
+      cpf.length >
+        0
+    ) {
+      cleanCpf =
+        cpf.replace(
+          /\D/g,
+          ""
+        );
+
+
+      if (
+        cleanCpf.length !==
+        11
+      ) {
+        return privateNoStoreJson(
+          {
+            error:
+              "CPF deve conter 11 dígitos.",
+          },
+          {
+            status:
+              400,
+          }
         );
       }
     }
 
-    // Registrar usuário
-    const user = await registerUser(
-      email.toLowerCase().trim(),
-      password,
-      name.trim(),
-      cpf ? cpf.replace(/\D/g, "") : undefined,
-      phone ? phone.trim() : undefined,
-      "user"
+
+    const cleanPhone =
+      typeof phone ===
+        "string"
+        ? phone.trim()
+        : undefined;
+
+
+    if (
+      cleanPhone &&
+      cleanPhone.length >
+        30
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Telefone inválido.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+
+    const user =
+      await registerUser(
+        normalizedEmail,
+        password,
+        normalizedName,
+        cleanCpf,
+        cleanPhone ||
+          undefined,
+        "user"
+      );
+
+
+    if (
+      !user
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Este email já está cadastrado.",
+        },
+        {
+          status:
+            409,
+        }
+      );
+    }
+
+
+    /**
+     * Mantemos o comportamento atual:
+     * cadastro bem-sucedido já inicia sessão.
+     */
+    const authResult =
+      await authenticateUser(
+        normalizedEmail,
+        password
+      );
+
+
+    if (
+      !authResult
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Usuário criado, mas falha ao autenticar. Faça login manualmente.",
+        },
+        {
+          status:
+            201,
+        }
+      );
+    }
+
+
+    const response =
+      privateNoStoreJson(
+        {
+          success:
+            true,
+
+          user: {
+            id:
+              authResult
+                .user
+                .id,
+
+            email:
+              authResult
+                .user
+                .email,
+
+            name:
+              authResult
+                .user
+                .name,
+
+            role:
+              authResult
+                .user
+                .role,
+          },
+        },
+        {
+          status:
+            201,
+        }
+      );
+
+
+    setSessionCookie(
+      response,
+      authResult
+        .session
+        .token
     );
 
-    if (!user) {
-      return NextResponse.json(
-        { error: "Este email já está cadastrado." },
-        { status: 409 }
-      );
-    }
-
-    // Autenticar automaticamente após o registro
-    const authResult = await authenticateUser(email.toLowerCase().trim(), password);
-
-    if (!authResult) {
-      return NextResponse.json(
-        { error: "Usuário criado, mas falha ao autenticar. Faça login manualmente." },
-        { status: 201 }
-      );
-    }
-
-    const response = NextResponse.json({
-      success: true,
-      user: {
-        id: authResult.user.id,
-        email: authResult.user.email,
-        name: authResult.user.name,
-        role: authResult.user.role,
-      },
-    }, { status: 201 });
-
-    // Definir cookie HTTPOnly
-    response.cookies.set("fd-session", authResult.session.token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60,
-    });
 
     return response;
-  } catch (error) {
-    console.error("Erro no registro:", error);
-    return NextResponse.json(
-      { error: "Erro interno do servidor." },
-      { status: 500 }
+  } catch (
+    error
+  ) {
+    console.error(
+      "Erro no registro:",
+      error
+    );
+
+
+    return privateNoStoreJson(
+      {
+        error:
+          "Erro interno do servidor.",
+      },
+      {
+        status:
+          500,
+      }
     );
   }
 }

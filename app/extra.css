@@ -1105,7 +1105,7 @@
 .ranking-header,
 .ranking-row {
   display: grid;
-  grid-template-columns: 60px 2fr 1fr 1fr 1fr;
+  grid-template-columns: 60px 2fr 1fr 1fr;
   align-items: center;
   padding: 0.8rem 1rem;
   gap: 0.75rem;
@@ -1131,12 +1131,6 @@
   font-weight: 600;
 }
 
-.ranking-row.current-user .name b {
-  color: #f59e0b;
-  margin-left: 0.3rem;
-  font-size: 0.8rem;
-}
-
 .ranking-row .position {
   font-weight: 700;
   color: #0a2a52;
@@ -1146,9 +1140,20 @@
   color: #333;
 }
 
-.ranking-row .score { color: #0a2a52; font-weight: 600; }
-.ranking-row .time { color: #666; }
-.ranking-row .date { color: #888; font-size: 0.85rem; }
+.ranking-row .score {
+  color: #0a2a52;
+  font-weight: 600;
+}
+
+.ranking-row .score small {
+  color: #777;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.ranking-row .time {
+  color: #666;
+}
 
 @media (max-width: 640px) {
   .ranking-header,
@@ -1156,10 +1161,9 @@
     grid-template-columns: 40px 2fr 1fr;
     font-size: 0.8rem;
   }
+
   .ranking-header span:nth-child(4),
-  .ranking-header span:nth-child(5),
-  .ranking-row .time,
-  .ranking-row .date {
+  .ranking-row .time {
     display: none;
   }
 }

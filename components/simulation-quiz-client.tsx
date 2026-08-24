@@ -47,6 +47,7 @@ export function SimulationQuizClient({
       true
     );
 
+
   const [
     error,
     setError,
@@ -54,6 +55,7 @@ export function SimulationQuizClient({
     useState(
       ""
     );
+
 
   const [
     simulation,
@@ -68,67 +70,115 @@ export function SimulationQuizClient({
 
   useEffect(
     () => {
+      let cancelled =
+        false;
+
+
+      async function fetchSimulation() {
+        setLoading(
+          true
+        );
+
+
+        setError(
+          ""
+        );
+
+
+        try {
+          /**
+           * Este endpoint devolve somente
+           * metadados.
+           *
+           * As questões reais serão recebidas
+           * somente pela infraestrutura de
+           * attempts, depois que o relógio
+           * server-side começar.
+           */
+          const response =
+            await fetch(
+              `/api/simulations/${simulationId}`,
+              {
+                credentials:
+                  "include",
+
+                cache:
+                  "no-store",
+              }
+            );
+
+
+          const data =
+            await response.json();
+
+
+          if (
+            cancelled
+          ) {
+            return;
+          }
+
+
+          if (
+            !response.ok
+          ) {
+            setError(
+              data.error ||
+              "Erro ao carregar simulado."
+            );
+
+
+            return;
+          }
+
+
+          if (
+            !data.simulation
+          ) {
+            setError(
+              "Dados do simulado inválidos."
+            );
+
+
+            return;
+          }
+
+
+          setSimulation(
+            data.simulation
+          );
+        } catch {
+          if (
+            !cancelled
+          ) {
+            setError(
+              "Erro de conexão."
+            );
+          }
+        } finally {
+          if (
+            !cancelled
+          ) {
+            setLoading(
+              false
+            );
+          }
+        }
+      }
+
+
       void fetchSimulation();
+
+
+      return () => {
+        cancelled =
+          true;
+      };
     },
     [
       simulationId,
     ]
   );
-
-
-  async function fetchSimulation() {
-    setLoading(
-      true
-    );
-
-    setError(
-      ""
-    );
-
-
-    try {
-      const response =
-        await fetch(
-          `/api/simulations/${simulationId}`,
-          {
-            credentials:
-              "include",
-
-            cache:
-              "no-store",
-          }
-        );
-
-
-      const data =
-        await response.json();
-
-
-      if (
-        !response.ok
-      ) {
-        setError(
-          data.error ||
-          "Erro ao carregar."
-        );
-
-        return;
-      }
-
-
-      setSimulation(
-        data.simulation
-      );
-    } catch {
-      setError(
-        "Erro de conexão."
-      );
-    } finally {
-      setLoading(
-        false
-      );
-    }
-  }
 
 
   if (
@@ -177,6 +227,7 @@ export function SimulationQuizClient({
               "Simulado não encontrado."}
           </h2>
 
+
           <Link
             href="/simulados"
             className="button button-primary"
@@ -189,45 +240,6 @@ export function SimulationQuizClient({
             }}
           >
             Voltar aos simulados
-          </Link>
-        </div>
-      </main>
-    );
-  }
-
-
-  if (
-    simulation.totalQuestions <=
-    0
-  ) {
-    return (
-      <main className="simulation-page">
-        <div
-          className="container"
-          style={{
-            padding:
-              "4rem 1rem",
-
-            textAlign:
-              "center",
-          }}
-        >
-          <h2>
-            ⚠ Este simulado ainda não possui questões cadastradas.
-          </h2>
-
-          <Link
-            href="/simulados"
-            className="button button-primary"
-            style={{
-              marginTop:
-                "1rem",
-
-              display:
-                "inline-block",
-            }}
-          >
-            Voltar
           </Link>
         </div>
       </main>

@@ -3,21 +3,15 @@ import type {
 } from "next/server";
 
 import {
-  NextResponse,
-} from "next/server";
-
-import {
-  and,
-  desc,
   eq,
 } from "drizzle-orm";
 
 import {
   getDb,
+  getSqliteConnection,
 } from "../../../../db/index";
 
 import {
-  simulationResults,
   simulations,
 } from "../../../../db/schema";
 
@@ -34,9 +28,9 @@ import {
 } from "../../../../lib/simulation-access";
 
 import {
-  getSimulationQuestionRows,
-  parseSimulationQuestionOptions,
-} from "../../../../lib/simulation-repository";
+  getSessionToken,
+  privateNoStoreJson,
+} from "../../../../lib/session-cookie";
 
 
 type RouteContext = {
@@ -45,6 +39,15 @@ type RouteContext = {
       id:
         string;
     }>;
+};
+
+
+type QuestionStateRow = {
+  total:
+    number;
+
+  activeTotal:
+    number;
 };
 
 
@@ -60,10 +63,12 @@ function parseSimulationId(
     return null;
   }
 
+
   const parsed =
     Number(
       value
     );
+
 
   return (
     Number.isInteger(
@@ -86,19 +91,22 @@ export async function GET(
   try {
     await initDatabase();
 
+
     const params =
       await context.params;
+
 
     const simulationId =
       parseSimulationId(
         params.id
       );
 
+
     if (
       simulationId ===
       null
     ) {
-      return NextResponse.json(
+      return privateNoStoreJson(
         {
           error:
             "ID inválido.",
@@ -110,15 +118,17 @@ export async function GET(
       );
     }
 
-    const token =
-      request.cookies.get(
-        "fd-session"
-      )?.value;
+
+    const sessionToken =
+      getSessionToken(
+        request
+      );
+
 
     if (
-      !token
+      !sessionToken
     ) {
-      return NextResponse.json(
+      return privateNoStoreJson(
         {
           error:
             "Não autenticado.",
@@ -130,15 +140,17 @@ export async function GET(
       );
     }
 
+
     const user =
       await validateSession(
-        token
+        sessionToken
       );
+
 
     if (
       !user
     ) {
-      return NextResponse.json(
+      return privateNoStoreJson(
         {
           error:
             "Sessão inválida.",
@@ -150,11 +162,13 @@ export async function GET(
       );
     }
 
+
     const access =
       await resolveSimulationAccess(
         user.id,
         simulationId
       );
+
 
     if (
       !access.allowed
@@ -165,7 +179,7 @@ export async function GET(
         access.reason ===
           "simulation_inactive"
       ) {
-        return NextResponse.json(
+        return privateNoStoreJson(
           {
             error:
               "Simulado não encontrado.",
@@ -177,7 +191,8 @@ export async function GET(
         );
       }
 
-      return NextResponse.json(
+
+      return privateNoStoreJson(
         {
           error:
             "Você não possui acesso a este simulado.",
@@ -189,12 +204,29 @@ export async function GET(
       );
     }
 
+
     const db =
       getDb();
 
+
     const simulation =
       await db
-        .select()
+        .select({
+          id:
+            simulations.id,
+
+          title:
+            simulations.title,
+
+          bank:
+            simulations.bank,
+
+          description:
+            simulations.description,
+
+          timeLimit:
+            simulations.timeLimit,
+        })
         .from(
           simulations
         )
@@ -206,10 +238,11 @@ export async function GET(
         )
         .get();
 
+
     if (
       !simulation
     ) {
-      return NextResponse.json(
+      return privateNoStoreJson(
         {
           error:
             "Simulado não encontrado.",
@@ -221,21 +254,76 @@ export async function GET(
       );
     }
 
-    const questionRows =
-      await getSimulationQuestionRows(
-        simulationId
+
+    const sqlite =
+      getSqliteConnection();
+
+
+    /**
+     * O endpoint pré-prova precisa saber apenas
+     * quantas questões existem.
+     *
+     * Não carregamos:
+     *
+     * - enunciado;
+     * - alternativas;
+     * - gabarito;
+     * - explicação.
+     *
+     * As questões somente serão liberadas depois
+     * que POST /attempts iniciar o relógio oficial.
+     */
+    const questionState =
+      sqlite
+        .prepare(`
+          SELECT
+            COUNT(*) AS total,
+            COALESCE(
+              SUM(
+                CASE
+                  WHEN q.active = 1
+                    THEN 1
+                  ELSE 0
+                END
+              ),
+              0
+            ) AS activeTotal
+          FROM simulation_questions sq
+          INNER JOIN questions q
+            ON q.id = sq.question_id
+          WHERE
+            sq.simulation_id = ?
+        `)
+        .get(
+          simulationId
+        ) as
+        | QuestionStateRow
+        | undefined;
+
+
+    const totalQuestions =
+      Number(
+        questionState
+          ?.total ??
+        0
       );
 
+
+    const activeTotal =
+      Number(
+        questionState
+          ?.activeTotal ??
+        0
+      );
+
+
     if (
-      questionRows.some(
-        (
-          question
-        ) =>
-          question.active !==
-          true
-      )
+      totalQuestions <=
+        0 ||
+      activeTotal !==
+        totalQuestions
     ) {
-      return NextResponse.json(
+      return privateNoStoreJson(
         {
           error:
             "Este simulado está temporariamente indisponível.",
@@ -247,112 +335,36 @@ export async function GET(
       );
     }
 
-    const publicQuestions =
-      questionRows.map(
-        (
-          question
-        ) => ({
-          id:
-            question.id,
 
-          subject:
-            question.subject,
+    /**
+     * PRINCÍPIO DE MENOR PRIVILÉGIO
+     *
+     * Antes de iniciar a tentativa, o browser
+     * recebe somente os metadados necessários
+     * para apresentar a tela inicial.
+     *
+     * Não devolvemos questions nem userHistory.
+     */
+    return privateNoStoreJson({
+      simulation: {
+        id:
+          simulation.id,
 
-          questionText:
-            question.questionText,
+        title:
+          simulation.title,
 
-          options:
-            parseSimulationQuestionOptions(
-              question.options
-            ),
+        bank:
+          simulation.bank,
 
-          difficulty:
-            question.difficulty,
-        })
-      );
+        description:
+          simulation.description,
 
-    const userResults =
-      await db
-        .select({
-          id:
-            simulationResults.id,
+        timeLimit:
+          simulation.timeLimit,
 
-          score:
-            simulationResults.score,
-
-          totalQuestions:
-            simulationResults.totalQuestions,
-
-          timeSpent:
-            simulationResults.timeSpent,
-
-          completedAt:
-            simulationResults.completedAt,
-        })
-        .from(
-          simulationResults
-        )
-        .where(
-          and(
-            eq(
-              simulationResults.simulationId,
-              simulationId
-            ),
-
-            eq(
-              simulationResults.userId,
-              user.id
-            )
-          )
-        )
-        .orderBy(
-          desc(
-            simulationResults.completedAt
-          )
-        )
-        .all();
-
-    return NextResponse.json(
-      {
-        simulation: {
-          id:
-            simulation.id,
-
-          title:
-            simulation.title,
-
-          bank:
-            simulation.bank,
-
-          description:
-            simulation.description,
-
-          timeLimit:
-            simulation.timeLimit,
-
-          totalQuestions:
-            publicQuestions.length,
-        },
-
-        /**
-         * Não contém:
-         *
-         * correctAnswer
-         * explanation
-         */
-        questions:
-          publicQuestions,
-
-        userHistory:
-          userResults,
+        totalQuestions,
       },
-      {
-        headers: {
-          "Cache-Control":
-            "private, no-store",
-        },
-      }
-    );
+    });
   } catch (
     error
   ) {
@@ -361,7 +373,8 @@ export async function GET(
       error
     );
 
-    return NextResponse.json(
+
+    return privateNoStoreJson(
       {
         error:
           "Erro interno.",

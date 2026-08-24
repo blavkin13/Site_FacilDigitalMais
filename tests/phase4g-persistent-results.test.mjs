@@ -1180,7 +1180,7 @@ describe(
 
 
     test(
-      "ranking deve usar percentual antes do score absoluto",
+      "ranking deve usar percentual e não expor identidade dos participantes",
       async () => {
         const service =
           await import(
@@ -1201,25 +1201,58 @@ describe(
         );
 
 
+        const first =
+          ranking.ranking[0];
+
+
         assert.equal(
-          ranking.ranking[0].score,
+          first.score,
           2
         );
 
 
         assert.equal(
-          ranking.ranking[0].totalQuestions,
+          first.totalQuestions,
           2
         );
 
 
+        assert.equal(
+          first.percentage,
+          100
+        );
+
+
+        assert.equal(
+          first.name,
+          "Você"
+        );
+
+
+        assert.equal(
+          first.isCurrentUser,
+          true
+        );
+
+
+        /**
+         * Resultado legado:
+         *
+         * 3/4 = 75%
+         *
+         * Continua abaixo de:
+         *
+         * 2/2 = 100%
+         */
         const legacy =
           ranking.ranking.find(
             (
               entry
             ) =>
-              entry.name ===
-              "Aluno Legado"
+              entry.score ===
+                3 &&
+              entry.totalQuestions ===
+                4
           );
 
 
@@ -1229,14 +1262,67 @@ describe(
 
 
         assert.equal(
-          legacy.score,
-          3
+          legacy.percentage,
+          75
         );
 
 
         assert.ok(
           legacy.position >
             1
+        );
+
+
+        /**
+         * Nome real não é devolvido.
+         */
+        assert.match(
+          legacy.name,
+          /^Aluno \d+$/
+        );
+
+
+        assert.notEqual(
+          legacy.name,
+          "Aluno Legado"
+        );
+
+
+        /**
+         * Tempo legado não é autoritativo e não
+         * deve ser exibido no ranking.
+         */
+        assert.equal(
+          legacy.authoritativeTime,
+          false
+        );
+
+
+        assert.equal(
+          legacy.timeSpent,
+          null
+        );
+
+
+        /**
+         * completedAt continua sendo critério interno
+         * de desempate, mas não é metadata pública.
+         */
+        assert.equal(
+          Object.hasOwn(
+            legacy,
+            "completedAt"
+          ),
+          false
+        );
+
+
+        assert.equal(
+          Object.hasOwn(
+            legacy,
+            "userId"
+          ),
+          false
         );
       }
     );

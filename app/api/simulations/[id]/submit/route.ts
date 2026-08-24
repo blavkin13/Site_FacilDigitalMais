@@ -3,10 +3,6 @@ import type {
 } from "next/server";
 
 import {
-  NextResponse,
-} from "next/server";
-
-import {
   initDatabase,
 } from "../../../../../db/init";
 
@@ -16,9 +12,13 @@ import {
 
 import {
   finalizeSimulationAttempt,
-  getSimulationRanking,
   type FinalizeAttemptDecision,
 } from "../../../../../lib/simulation-attempt-submit";
+
+import {
+  getSessionToken,
+  privateNoStoreJson,
+} from "../../../../../lib/session-cookie";
 
 
 type RouteContext = {
@@ -42,10 +42,12 @@ function parseSimulationId(
     return null;
   }
 
+
   const parsed =
     Number(
       value
     );
+
 
   return (
     Number.isInteger(
@@ -57,6 +59,7 @@ function parseSimulationId(
     ? parsed
     : null;
 }
+
 
 function failureResponse(
   decision:
@@ -83,7 +86,7 @@ function failureResponse(
     decision.reason ===
       "answers_invalid"
   ) {
-    return NextResponse.json(
+    return privateNoStoreJson(
       body,
       {
         status:
@@ -95,9 +98,9 @@ function failureResponse(
 
   if (
     decision.reason ===
-    "attempt_not_found"
+      "attempt_not_found"
   ) {
-    return NextResponse.json(
+    return privateNoStoreJson(
       body,
       {
         status:
@@ -109,9 +112,9 @@ function failureResponse(
 
   if (
     decision.reason ===
-    "attempt_expired"
+      "attempt_expired"
   ) {
-    return NextResponse.json(
+    return privateNoStoreJson(
       body,
       {
         status:
@@ -127,7 +130,7 @@ function failureResponse(
     decision.reason ===
       "access_revoked"
   ) {
-    return NextResponse.json(
+    return privateNoStoreJson(
       body,
       {
         status:
@@ -137,7 +140,7 @@ function failureResponse(
   }
 
 
-  return NextResponse.json(
+  return privateNoStoreJson(
     body,
     {
       status:
@@ -145,6 +148,7 @@ function failureResponse(
     }
   );
 }
+
 
 export async function POST(
   request:
@@ -159,6 +163,7 @@ export async function POST(
     const params =
       await context.params;
 
+
     const simulationId =
       parseSimulationId(
         params.id
@@ -169,7 +174,7 @@ export async function POST(
       simulationId ===
       null
     ) {
-      return NextResponse.json(
+      return privateNoStoreJson(
         {
           error:
             "ID inválido.",
@@ -186,15 +191,15 @@ export async function POST(
 
 
     const sessionToken =
-      request.cookies.get(
-        "fd-session"
-      )?.value;
+      getSessionToken(
+        request
+      );
 
 
     if (
       !sessionToken
     ) {
-      return NextResponse.json(
+      return privateNoStoreJson(
         {
           error:
             "Não autenticado.",
@@ -216,7 +221,7 @@ export async function POST(
     if (
       !user
     ) {
-      return NextResponse.json(
+      return privateNoStoreJson(
         {
           error:
             "Sessão inválida.",
@@ -237,7 +242,7 @@ export async function POST(
       body =
         await request.json();
     } catch {
-      return NextResponse.json(
+      return privateNoStoreJson(
         {
           error:
             "Corpo JSON inválido.",
@@ -271,90 +276,33 @@ export async function POST(
 
 
     /**
-     * O resultado já foi persistido e a tentativa
-     * marcada como completed dentro de uma única
-     * transação SQLite.
+     * PRINCÍPIO DE MENOR PRIVILÉGIO
      *
-     * Ranking é calculado somente depois do commit.
+     * O POST apenas confirma que a operação foi
+     * concluída e fornece a chave do resultado.
+     *
+     * Não duplicamos nesta resposta:
+     *
+     * - gabarito;
+     * - explicações;
+     * - snapshot;
+     * - ranking;
+     * - dados de outros alunos.
+     *
+     * O browser seguirá para o endpoint owner-only
+     * GET /results/{resultId}.
      */
-    const rankingData =
-      await getSimulationRanking(
-        simulationId,
-        user.id
-      );
+    return privateNoStoreJson({
+      success:
+        true,
 
-
-    return NextResponse.json(
-      {
-        result: {
-          id:
-            decision.result.id,
-
-          score:
-            decision.result.score,
-
-          totalQuestions:
-            decision
-              .result
-              .totalQuestions,
-
-          timeSpent:
-            decision
-              .result
-              .timeSpent,
-
-          completedAt:
-            decision
-              .result
-              .completedAt,
-        },
-
-        score:
-          decision.result.score,
-
-        totalQuestions:
+      result: {
+        id:
           decision
             .result
-            .totalQuestions,
-
-        /**
-         * Tempo calculado exclusivamente
-         * pelo servidor.
-         */
-        timeSpent:
-          decision
-            .result
-            .timeSpent,
-
-        percentage:
-          decision
-            .result
-            .percentage,
-
-        /**
-         * Gabarito somente depois da conclusão.
-         */
-        detailedAnswers:
-          decision
-            .result
-            .detailedAnswers,
-
-        ranking:
-          rankingData.ranking,
-
-        userPosition:
-          rankingData.userPosition,
-
-        totalParticipants:
-          rankingData.totalParticipants,
+            .id,
       },
-      {
-        headers: {
-          "Cache-Control":
-            "private, no-store",
-        },
-      }
-    );
+    });
   } catch (
     error
   ) {
@@ -364,7 +312,7 @@ export async function POST(
     );
 
 
-    return NextResponse.json(
+    return privateNoStoreJson(
       {
         error:
           "Erro interno.",

@@ -1,34 +1,95 @@
-import { NextRequest, NextResponse } from "next/server";
-import { logoutSession } from "../../../../lib/auth";
-import { initDatabase } from "../../../../db/init";
+import type {
+  NextRequest,
+} from "next/server";
 
-export async function POST(request: NextRequest) {
+import {
+  logoutSession,
+} from "../../../../lib/auth";
+
+import {
+  initDatabase,
+} from "../../../../db/init";
+
+import {
+  clearSessionCookie,
+  getSessionToken,
+  privateNoStoreJson,
+} from "../../../../lib/session-cookie";
+
+
+export async function POST(
+  request:
+    NextRequest
+) {
   try {
     await initDatabase();
 
-    const token = request.cookies.get("fd-session")?.value;
 
-    if (token) {
-      await logoutSession(token);
+    const token =
+      getSessionToken(
+        request
+      );
+
+
+    if (
+      token
+    ) {
+      await logoutSession(
+        token
+      );
     }
 
-    const response = NextResponse.json({ success: true });
 
-    // Limpar cookie
-    response.cookies.set("fd-session", "", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 0,
-    });
+    const response =
+      privateNoStoreJson({
+        success:
+          true,
+      });
+
+
+    /**
+     * Logout permanece idempotente:
+     * mesmo sem sessão válida o cookie local
+     * será apagado.
+     */
+    clearSessionCookie(
+      response
+    );
+
 
     return response;
-  } catch (error) {
-    console.error("Erro no logout:", error);
-    return NextResponse.json(
-      { error: "Erro interno do servidor." },
-      { status: 500 }
+  } catch (
+    error
+  ) {
+    console.error(
+      "Erro no logout:",
+      error
     );
+
+
+    const response =
+      privateNoStoreJson(
+        {
+          error:
+            "Erro interno do servidor.",
+        },
+        {
+          status:
+            500,
+        }
+      );
+
+
+    /**
+     * Mesmo se a exclusão do servidor falhar,
+     * não mantemos intencionalmente o cookie
+     * de autenticação no navegador.
+     */
+    clearSessionCookie(
+      response
+    );
+
+
+    return response;
   }
 }

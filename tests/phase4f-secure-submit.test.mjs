@@ -702,27 +702,36 @@ describe(
           await response.json();
 
 
-        assert.equal(
-          data.score,
-          2
+        /**
+         * A resposta HTTP ficou propositalmente
+         * mínima na 4.4B.2B.
+         */
+        assert.deepEqual(
+          Object.keys(
+            data
+          ).sort(),
+          [
+            "result",
+            "success",
+          ]
+        );
+
+
+        assert.deepEqual(
+          Object.keys(
+            data.result
+          ),
+          [
+            "id",
+          ]
         );
 
 
         assert.equal(
-          data.detailedAnswers[0].questionText,
-          "Texto original congelado."
-        );
-
-
-        assert.equal(
-          data.detailedAnswers[0].correctAnswer,
-          1
-        );
-
-
-        assert.equal(
-          data.detailedAnswers[0].explanation,
-          "B era a resposta no início."
+          Number.isInteger(
+            data.result.id
+          ),
+          true
         );
 
 
@@ -730,7 +739,10 @@ describe(
           sqlite
             .prepare(`
               SELECT
+                id,
                 attempt_id,
+                score,
+                total_questions,
                 snapshot
               FROM simulation_results
               WHERE
@@ -743,6 +755,29 @@ describe(
               owner.id,
               simulationId
             );
+
+
+        assert.ok(
+          result
+        );
+
+
+        assert.equal(
+          result.id,
+          data.result.id
+        );
+
+
+        assert.equal(
+          result.score,
+          2
+        );
+
+
+        assert.equal(
+          result.total_questions,
+          2
+        );
 
 
         assert.equal(
@@ -776,6 +811,18 @@ describe(
         assert.equal(
           snapshot.questions[0].questionText,
           "Texto original congelado."
+        );
+
+
+        assert.equal(
+          snapshot.questions[0].correctAnswer,
+          1
+        );
+
+
+        assert.equal(
+          snapshot.questions[0].explanation,
+          "B era a resposta no início."
         );
       }
     );
@@ -1047,16 +1094,54 @@ describe(
         );
 
 
-        const data =
+        const responseData =
           await response.json();
 
 
         assert.ok(
-          data.timeSpent >=
+          responseData.result.id
+        );
+
+
+        /**
+         * A autoridade de tempo é o resultado
+         * persistido, não a resposta do navegador.
+         */
+        const result =
+          sqlite
+            .prepare(`
+              SELECT
+                time_spent AS timeSpent
+              FROM simulation_results
+              WHERE id = ?
+            `)
+            .get(
+              responseData
+                .result
+                .id
+            );
+
+
+        assert.ok(
+          result
+        );
+
+
+        assert.ok(
+          result.timeSpent >=
             124 &&
-          data.timeSpent <=
+          result.timeSpent <=
             128,
-          `Tempo server-side inesperado: ${data.timeSpent}`
+          `Tempo server-side inesperado: ${result.timeSpent}`
+        );
+
+
+        assert.equal(
+          Object.hasOwn(
+            responseData,
+            "timeSpent"
+          ),
+          false
         );
       }
     );

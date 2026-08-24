@@ -48,11 +48,14 @@ interface RankingEntry {
   totalQuestions:
     number;
 
-  timeSpent:
+  percentage:
     number;
 
-  completedAt:
-    string;
+  timeSpent:
+    number | null;
+
+  authoritativeTime:
+    boolean;
 
   isCurrentUser:
     boolean;
@@ -418,7 +421,7 @@ export function SimulationResults({
       answer.isCorrect
     ) {
       current.correct +=
-        1;
+      1;
     }
 
 
@@ -792,7 +795,7 @@ export function SimulationResults({
             </h2>
 
             <p>
-              Melhor tentativa de cada aluno. O percentual é o critério principal e o tempo server-side é usado apenas como desempate.
+              Melhor tentativa de cada aluno. Por privacidade, os demais participantes são identificados de forma anônima. O percentual é o critério principal e somente tempos medidos pelo servidor podem ser usados como desempate.
             </p>
           </header>
 
@@ -807,15 +810,11 @@ export function SimulationResults({
               </span>
 
               <span>
-                Acertos
+                Desempenho
               </span>
 
               <span>
                 Tempo
-              </span>
-
-              <span>
-                Data
               </span>
             </div>
 
@@ -847,31 +846,30 @@ export function SimulationResults({
 
                   <span className="name">
                     {entry.name}
-
-                    {entry.isCurrentUser && (
-                      <b>
-                        (você)
-                      </b>
-                    )}
                   </span>
 
                   <span className="score">
-                    {entry.score}/
-                    {entry.totalQuestions}
+                    {entry.percentage}%{" "}
+                    <small>
+                      ({entry.score}/
+                      {entry.totalQuestions})
+                    </small>
                   </span>
 
-                  <span className="time">
-                    {formatTime(
-                      entry.timeSpent
-                    )}
-                  </span>
-
-                  <span className="date">
-                    {new Date(
-                      entry.completedAt
-                    ).toLocaleDateString(
-                      "pt-BR"
-                    )}
+                  <span
+                    className="time"
+                    title={
+                      entry.authoritativeTime
+                        ? "Tempo medido pelo servidor"
+                        : "Tempo indisponível para resultado legado"
+                    }
+                  >
+                    {entry.timeSpent ===
+                    null
+                      ? "—"
+                      : formatTime(
+                          entry.timeSpent
+                        )}
                   </span>
                 </div>
               )

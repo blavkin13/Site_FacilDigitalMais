@@ -360,7 +360,7 @@ describe(
 
 
     test(
-      "API login valida campos obrigatórios",
+      "API login valida campos obrigatórios e usa cookie central seguro",
       () => {
         const content =
           readFileSync(
@@ -376,6 +376,17 @@ describe(
           );
 
 
+        const cookieContent =
+          readFileSync(
+            join(
+              process.cwd(),
+              "lib",
+              "session-cookie.ts"
+            ),
+            "utf8"
+          );
+
+
         assert.match(
           content,
           /!email\s*\|\|\s*!password/
@@ -384,18 +395,48 @@ describe(
 
         assert.match(
           content,
-          /fd-session/
+          /setSessionCookie/
         );
 
 
         assert.match(
           content,
-          /httpOnly/
+          /privateNoStoreJson/
+        );
+
+
+        assert.match(
+          cookieContent,
+          /fd-session/
+        );
+
+
+        assert.match(
+          cookieContent,
+          /httpOnly:\s*true/
+        );
+
+
+        assert.match(
+          cookieContent,
+          /sameSite:\s*["']lax["']/
+        );
+
+
+        assert.match(
+          cookieContent,
+          /process\.env\.NODE_ENV\s*===\s*["']production["']/
+        );
+
+
+        assert.match(
+          cookieContent,
+          /SESSION_TTL_SECONDS/
         );
 
 
         console.log(
-          "✅ API login tem validações de segurança"
+          "✅ API login usa política central segura de sessão"
         );
       }
     );
