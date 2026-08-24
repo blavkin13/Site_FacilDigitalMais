@@ -147,6 +147,99 @@ function formatTime(
 }
 
 
+/**
+ * sessionStorage é apenas uma camada auxiliar
+ * de UX.
+ *
+ * A tentativa, o relógio oficial e o resultado
+ * continuam pertencendo ao servidor.
+ *
+ * Alguns navegadores podem bloquear storage por
+ * configuração de privacidade, política ou falta
+ * de espaço. Nenhuma dessas situações pode
+ * interromper uma prova em andamento.
+ */
+function safeSessionGet(
+  key:
+    string
+) {
+  try {
+    if (
+      typeof window ===
+      "undefined"
+    ) {
+      return null;
+    }
+
+
+    return window
+      .sessionStorage
+      .getItem(
+        key
+      );
+  } catch {
+    return null;
+  }
+}
+
+
+function safeSessionSet(
+  key:
+    string,
+  value:
+    string
+) {
+  try {
+    if (
+      typeof window ===
+      "undefined"
+    ) {
+      return;
+    }
+
+
+    window
+      .sessionStorage
+      .setItem(
+        key,
+        value
+      );
+  } catch {
+    /**
+     * Falha de storage não pode interromper
+     * a execução da prova.
+     */
+  }
+}
+
+
+function safeSessionRemove(
+  key:
+    string
+) {
+  try {
+    if (
+      typeof window ===
+      "undefined"
+    ) {
+      return;
+    }
+
+
+    window
+      .sessionStorage
+      .removeItem(
+        key
+      );
+  } catch {
+    /**
+     * Falha de storage não bloqueia
+     * a aplicação.
+     */
+  }
+}
+
+
 export function SimulationQuiz({
   simulation,
 }: SimulationQuizProps) {
@@ -164,6 +257,7 @@ export function SimulationQuiz({
       null
     );
 
+
   const [
     answers,
     setAnswers,
@@ -174,6 +268,7 @@ export function SimulationQuiz({
       []
     );
 
+
   const [
     currentIndex,
     setCurrentIndex,
@@ -181,6 +276,7 @@ export function SimulationQuiz({
     useState(
       0
     );
+
 
   const [
     timeLeft,
@@ -191,6 +287,7 @@ export function SimulationQuiz({
       60
     );
 
+
   const [
     checkingResume,
     setCheckingResume,
@@ -198,6 +295,7 @@ export function SimulationQuiz({
     useState(
       true
     );
+
 
   const [
     starting,
@@ -207,6 +305,7 @@ export function SimulationQuiz({
       false
     );
 
+
   const [
     submitting,
     setSubmitting,
@@ -214,6 +313,7 @@ export function SimulationQuiz({
     useState(
       false
     );
+
 
   const [
     actionError,
@@ -224,6 +324,12 @@ export function SimulationQuiz({
     );
 
 
+  /**
+   * Mantemos uma referência sincronizada das
+   * respostas para que callbacks assíncronos,
+   * inclusive o auto-submit, sempre utilizem
+   * o estado mais recente.
+   */
   const answersRef =
     useRef<
       UserAnswer[]
@@ -232,6 +338,13 @@ export function SimulationQuiz({
     );
 
 
+  /**
+   * O contador visual não depende de Date.now().
+   *
+   * O servidor entrega secondsRemaining e o
+   * navegador apenas projeta a passagem do tempo
+   * utilizando performance.now(), que é monotônico.
+   */
   const timerAnchorRef =
     useRef<
       TimerAnchor | null
@@ -240,12 +353,23 @@ export function SimulationQuiz({
     );
 
 
+  /**
+   * Impede dois submits concorrentes disparados
+   * pelo mesmo componente.
+   *
+   * O servidor ainda possui sua própria proteção
+   * transacional e UNIQUE por attempt_id.
+   */
   const submitStartedRef =
     useRef(
       false
     );
 
 
+  /**
+   * Impede o timer de disparar o auto-submit
+   * repetidamente quando permanecer em 00:00.
+   */
   const autoSubmitTriggeredRef =
     useRef(
       false
@@ -268,7 +392,7 @@ export function SimulationQuiz({
     token:
       string | null
   ) {
-    sessionStorage.removeItem(
+    safeSessionRemove(
       attemptStorageKey
     );
 
@@ -276,7 +400,7 @@ export function SimulationQuiz({
     if (
       token
     ) {
-      sessionStorage.removeItem(
+      safeSessionRemove(
         answersStorageKey(
           token
         )
@@ -285,6 +409,19 @@ export function SimulationQuiz({
   }
 
 
+  /**
+   * Respostas são restauradas apenas como
+   * conveniência ao usuário.
+   *
+   * Nunca confiamos nesses dados para:
+   *
+   * - definir questões oficiais;
+   * - definir gabarito;
+   * - definir score;
+   * - definir tempo.
+   *
+   * O servidor continua sendo a autoridade.
+   */
   function restoreAnswers(
     nextAttempt:
       PublicAttempt
@@ -305,7 +442,7 @@ export function SimulationQuiz({
 
     try {
       const stored =
-        sessionStorage.getItem(
+        safeSessionGet(
           answersStorageKey(
             nextAttempt.token
           )
@@ -369,6 +506,7 @@ export function SimulationQuiz({
             item.questionId
           );
 
+
         const selectedOption =
           item.selectedOption;
 
@@ -401,6 +539,13 @@ export function SimulationQuiz({
       }
 
 
+      /**
+       * Somente questões presentes no snapshot
+       * oficial atual são restauradas.
+       *
+       * Qualquer dado estranho colocado
+       * manualmente no sessionStorage é ignorado.
+       */
       return nextAttempt.questions.map(
         (
           question
@@ -443,6 +588,14 @@ export function SimulationQuiz({
   }
 
 
+  /**
+   * Ativa ou reativa uma tentativa retornada
+   * pelo servidor.
+   *
+   * A função também ancora novamente o contador
+   * monotônico usando secondsRemaining recebido
+   * da API.
+   */
   function activateAttempt(
     nextAttempt:
       PublicAttempt
@@ -457,9 +610,11 @@ export function SimulationQuiz({
       nextAttempt
     );
 
+
     setAnswers(
       restored
     );
+
 
     answersRef.current =
       restored;
@@ -470,28 +625,29 @@ export function SimulationQuiz({
     );
 
 
-    setTimeLeft(
+    const remaining =
       Math.max(
         0,
-        nextAttempt.secondsRemaining
-      )
+        nextAttempt
+          .secondsRemaining
+      );
+
+
+    setTimeLeft(
+      remaining
     );
 
 
     timerAnchorRef.current =
       {
         secondsRemaining:
-          Math.max(
-            0,
-            nextAttempt
-              .secondsRemaining
-          ),
+          remaining,
 
         /**
          * performance.now() é monotônico.
          *
-         * Alterar manualmente o relógio do
-         * computador não altera este contador.
+         * Alterar manualmente a hora do
+         * computador não devolve tempo à prova.
          */
         monotonicStartedAt:
           performance.now(),
@@ -501,17 +657,44 @@ export function SimulationQuiz({
     submitStartedRef.current =
       false;
 
+
     autoSubmitTriggeredRef.current =
       false;
 
 
-    sessionStorage.setItem(
+    /**
+     * O token local melhora a velocidade do
+     * próximo F5.
+     *
+     * Ele não é obrigatório: /attempts/active
+     * consegue descobrir a tentativa pelo
+     * próprio servidor.
+     */
+    safeSessionSet(
       attemptStorageKey,
       nextAttempt.token
     );
   }
 
 
+  /**
+   * Recuperação inicial da tentativa.
+   *
+   * Caso exista token no navegador:
+   *   GET /attempts/{token}
+   *
+   * Caso não exista:
+   *   GET /attempts/active
+   *
+   * Isso permite retomar a prova mesmo após:
+   *
+   * - fechar a aba;
+   * - reiniciar o navegador;
+   * - limpar o sessionStorage;
+   *
+   * desde que exista uma tentativa in_progress
+   * válida no servidor.
+   */
   useEffect(
     () => {
       let cancelled =
@@ -520,26 +703,21 @@ export function SimulationQuiz({
 
       async function resume() {
         const storedToken =
-          sessionStorage.getItem(
+          safeSessionGet(
             attemptStorageKey
           );
 
 
-        if (
-          !storedToken
-        ) {
-          setCheckingResume(
-            false
-          );
-
-          return;
-        }
+        const endpoint =
+          storedToken
+            ? `/api/simulations/${simulation.id}/attempts/${storedToken}`
+            : `/api/simulations/${simulation.id}/attempts/active`;
 
 
         try {
           const response =
             await fetch(
-              `/api/simulations/${simulation.id}/attempts/${storedToken}`,
+              endpoint,
               {
                 credentials:
                   "include",
@@ -569,23 +747,50 @@ export function SimulationQuiz({
               data.attempt
             );
 
+
             return;
           }
 
 
+          /**
+           * Token local antigo deixa de ser útil
+           * quando a tentativa:
+           *
+           * - expirou;
+           * - terminou;
+           * - foi revogada;
+           * - não existe.
+           */
           if (
-            response.status ===
-              403 ||
-            response.status ===
-              404 ||
-            response.status ===
-              409 ||
-            response.status ===
-              410
+            storedToken &&
+            (
+              response.status ===
+                403 ||
+              response.status ===
+                404 ||
+              response.status ===
+                409 ||
+              response.status ===
+                410
+            )
           ) {
             clearAttemptStorage(
               storedToken
             );
+          }
+
+
+          /**
+           * 404 em /active é completamente normal:
+           * significa apenas que o aluno ainda
+           * não iniciou uma prova.
+           */
+          if (
+            !storedToken &&
+            response.status ===
+              404
+          ) {
+            return;
           }
 
 
@@ -630,6 +835,18 @@ export function SimulationQuiz({
   );
 
 
+  /**
+   * Cronômetro visual.
+   *
+   * Ele NÃO é autoridade de tempo.
+   *
+   * O tempo oficial permanece:
+   *
+   * started_at
+   * expires_at
+   *
+   * armazenados no servidor.
+   */
   useEffect(
     () => {
       if (
@@ -674,6 +891,13 @@ export function SimulationQuiz({
         );
 
 
+        /**
+         * Quando o relógio visual chega a zero,
+         * tentamos finalizar automaticamente.
+         *
+         * O servidor decide se o submit ainda
+         * está dentro da janela permitida.
+         */
         if (
           remaining ===
             0 &&
@@ -681,6 +905,7 @@ export function SimulationQuiz({
         ) {
           autoSubmitTriggeredRef.current =
             true;
+
 
           void handleSubmit(
             true
@@ -711,10 +936,307 @@ export function SimulationQuiz({
   );
 
 
+  /**
+   * Quando a aba volta a ficar visível ou a
+   * janela recupera foco, consultamos novamente
+   * o servidor.
+   *
+   * Isso corrige situações em que navegadores,
+   * principalmente em dispositivos móveis,
+   * suspendem timers JavaScript em background.
+   */
+  useEffect(
+    () => {
+      const candidateToken =
+        attempt?.token;
+
+
+      if (
+        typeof candidateToken !==
+          "string" ||
+        candidateToken.length ===
+          0
+      ) {
+        return;
+      }
+
+
+      /**
+       * Depois da validação acima criamos uma
+       * referência explicitamente string.
+       *
+       * Isso evita que o TypeScript volte a
+       * considerar attempt?.token como undefined
+       * dentro das funções assíncronas aninhadas.
+       */
+      const token:
+        string =
+        candidateToken;
+
+
+      let cancelled =
+        false;
+
+
+      let syncing =
+        false;
+
+
+      async function resyncAttempt() {
+        if (
+          syncing ||
+          cancelled
+        ) {
+          return;
+        }
+
+
+        syncing =
+          true;
+
+
+        try {
+          const response =
+            await fetch(
+              `/api/simulations/${simulation.id}/attempts/${token}`,
+              {
+                credentials:
+                  "include",
+
+                cache:
+                  "no-store",
+              }
+            );
+
+
+          const data =
+            await response.json();
+
+
+          if (
+            cancelled
+          ) {
+            return;
+          }
+
+
+          if (
+            response.ok &&
+            data.attempt
+          ) {
+            const nextAttempt:
+              PublicAttempt =
+              data.attempt;
+
+
+            /**
+             * Não chamamos activateAttempt aqui
+             * porque isso restauraria navegação
+             * e respostas desnecessariamente.
+             *
+             * Precisamos apenas atualizar os
+             * dados autoritativos da tentativa
+             * e reancorar o relógio.
+             */
+            setAttempt(
+              nextAttempt
+            );
+
+
+            const authoritativeRemaining =
+              Math.max(
+                0,
+                nextAttempt
+                  .secondsRemaining
+              );
+
+
+            setTimeLeft(
+              authoritativeRemaining
+            );
+
+
+            timerAnchorRef.current =
+              {
+                secondsRemaining:
+                  authoritativeRemaining,
+
+                monotonicStartedAt:
+                  performance.now(),
+              };
+
+
+            return;
+          }
+
+
+          /**
+           * Estes status representam situações
+           * terminais para a tentativa atual.
+           */
+          const terminal =
+            response.status ===
+              403 ||
+            response.status ===
+              404 ||
+            response.status ===
+              409 ||
+            response.status ===
+              410;
+
+
+          if (
+            terminal
+          ) {
+            clearAttemptStorage(
+              token
+            );
+
+
+            setAttempt(
+              null
+            );
+
+
+            answersRef.current =
+              [];
+
+
+            setAnswers(
+              []
+            );
+
+
+            setActionError(
+              data.error ||
+              "Esta tentativa não está mais disponível."
+            );
+          }
+        } catch {
+          /**
+           * Uma falha temporária de internet
+           * não encerra a prova.
+           *
+           * O relógio local monotônico continua
+           * apenas para exibição.
+           *
+           * O servidor fará a validação oficial
+           * quando houver novo contato.
+           */
+        } finally {
+          syncing =
+            false;
+        }
+      }
+
+
+      function handleVisibilityChange() {
+        if (
+          document.visibilityState ===
+          "visible"
+        ) {
+          void resyncAttempt();
+        }
+      }
+
+
+      function handleFocus() {
+        void resyncAttempt();
+      }
+
+
+      document.addEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+
+
+      window.addEventListener(
+        "focus",
+        handleFocus
+      );
+
+
+      return () => {
+        cancelled =
+          true;
+
+
+        document.removeEventListener(
+          "visibilitychange",
+          handleVisibilityChange
+        );
+
+
+        window.removeEventListener(
+          "focus",
+          handleFocus
+        );
+      };
+    },
+    [
+      attempt?.token,
+      simulation.id,
+    ]
+  );
+
+
+  /**
+   * Proteção de UX contra fechamento acidental.
+   *
+   * O navegador decide qual mensagem exibir.
+   *
+   * Essa proteção NÃO é usada como mecanismo
+   * de segurança: fechar a aba não encerra nem
+   * reinicia a tentativa server-side.
+   */
+  useEffect(
+    () => {
+      if (
+        !attempt ||
+        submitting
+      ) {
+        return;
+      }
+
+
+      function handleBeforeUnload(
+        event:
+          BeforeUnloadEvent
+      ) {
+        event.preventDefault();
+
+
+        event.returnValue =
+          "";
+      }
+
+
+      window.addEventListener(
+        "beforeunload",
+        handleBeforeUnload
+      );
+
+
+      return () => {
+        window.removeEventListener(
+          "beforeunload",
+          handleBeforeUnload
+        );
+      };
+    },
+    [
+      attempt?.token,
+      submitting,
+    ]
+  );
+
+
   async function startSimulation() {
     setStarting(
       true
     );
+
 
     setActionError(
       ""
@@ -722,6 +1244,14 @@ export function SimulationQuiz({
 
 
     try {
+      /**
+       * O endpoint é idempotente do ponto de
+       * vista funcional:
+       *
+       * - cria nova tentativa se não houver;
+       * - retoma a existente se já houver uma
+       *   tentativa in_progress.
+       */
       const response =
         await fetch(
           `/api/simulations/${simulation.id}/attempts`,
@@ -752,6 +1282,7 @@ export function SimulationQuiz({
           data.error ||
           "Não foi possível iniciar o simulado."
         );
+
 
         return;
       }
@@ -807,12 +1338,20 @@ export function SimulationQuiz({
     answersRef.current =
       next;
 
+
     setAnswers(
       next
     );
 
 
-    sessionStorage.setItem(
+    /**
+     * Persistência local das respostas melhora
+     * recuperação após F5.
+     *
+     * Falha de storage é silenciosamente
+     * tolerada pelos helpers seguros.
+     */
+    safeSessionSet(
       answersStorageKey(
         attempt.token
       ),
@@ -862,6 +1401,16 @@ export function SimulationQuiz({
       boolean =
       false
   ) {
+    /**
+     * timeUp representa somente o motivo visual
+     * do disparo.
+     *
+     * Ele NÃO é enviado ao backend e NÃO decide
+     * se a tentativa expirou.
+     */
+    void timeUp;
+
+
     if (
       !attempt ||
       submitStartedRef.current
@@ -873,9 +1422,11 @@ export function SimulationQuiz({
     submitStartedRef.current =
       true;
 
+
     setSubmitting(
       true
     );
+
 
     setActionError(
       ""
@@ -899,7 +1450,17 @@ export function SimulationQuiz({
               "include",
 
             /**
-             * Não enviamos score nem timeSpent.
+             * O cliente envia somente:
+             *
+             * - attemptToken;
+             * - answers.
+             *
+             * Não enviamos:
+             *
+             * - score;
+             * - timeSpent;
+             * - correctAnswer;
+             * - expiresAt adulterável.
              */
             body:
               JSON.stringify({
@@ -921,14 +1482,11 @@ export function SimulationQuiz({
         response.ok
       ) {
         /**
-         * O servidor já persistiu o resultado.
+         * O resultado já foi persistido pelo
+         * servidor antes desta resposta.
          *
-         * sessionStorage continua sendo usado apenas
-         * durante uma tentativa aberta para recuperar
-         * respostas locais após F5.
-         *
-         * Resultado concluído não depende mais do
-         * navegador.
+         * O sessionStorage não é usado para
+         * transportar resultado concluído.
          */
         const resultId =
           Number(
@@ -950,18 +1508,41 @@ export function SimulationQuiz({
           resultId <=
             0
         ) {
+          /**
+           * O backend afirma que concluiu, mas
+           * não retornou o identificador necessário
+           * para consultar o resultado persistente.
+           *
+           * Não tentamos reenviar a mesma prova.
+           */
           setAttempt(
             null
           );
+
+
+          answersRef.current =
+            [];
+
+
+          setAnswers(
+            []
+          );
+
 
           setActionError(
             "O simulado foi concluído, mas o servidor não retornou o identificador do resultado."
           );
 
+
           return;
         }
 
 
+        /**
+         * replace evita deixar a prova concluída
+         * como entrada anterior no histórico do
+         * navegador.
+         */
         router.replace(
           `/simulados/${simulation.id}/resultado/${resultId}`
         );
@@ -977,6 +1558,10 @@ export function SimulationQuiz({
       );
 
 
+      /**
+       * Estes estados impedem qualquer novo
+       * submit para a mesma tentativa no cliente.
+       */
       const terminal =
         data.reason ===
           "attempt_expired" ||
@@ -997,26 +1582,62 @@ export function SimulationQuiz({
           attempt.token
         );
 
+
         setAttempt(
           null
         );
+
+
+        answersRef.current =
+          [];
+
+
+        setAnswers(
+          []
+        );
+
 
         return;
       }
 
 
       /**
-       * Erro não terminal, por exemplo conexão
-       * ou payload. Permitimos nova tentativa
-       * manual de finalização.
+       * Erros não terminais podem ser corrigidos
+       * ou reenviados.
+       *
+       * Exemplo:
+       * falha momentânea ou payload rejeitado.
        */
       submitStartedRef.current =
         false;
+
+
+      /**
+       * Caso o primeiro auto-submit tenha falhado
+       * por motivo não terminal, permitimos que o
+       * usuário tente finalizar novamente.
+       */
+      if (
+        timeLeft <=
+        0
+      ) {
+        autoSubmitTriggeredRef.current =
+          true;
+      }
     } catch {
       setActionError(
         "Erro de conexão ao finalizar. Tente novamente."
       );
 
+
+      /**
+       * Nenhum resultado foi confirmado pelo
+       * navegador, portanto permitimos retry.
+       *
+       * Mesmo que a primeira requisição tenha
+       * chegado ao servidor, a tentativa concluída
+       * será protegida server-side contra duplicação.
+       */
       submitStartedRef.current =
         false;
     } finally {
@@ -1027,6 +1648,14 @@ export function SimulationQuiz({
   }
 
 
+  /**
+   * Enquanto verificamos o servidor não exibimos
+   * o botão de iniciar.
+   *
+   * Isso evita que o usuário tente começar uma
+   * segunda prova antes de descobrirmos uma
+   * tentativa já aberta.
+   */
   if (
     checkingResume
   ) {
@@ -1048,6 +1677,9 @@ export function SimulationQuiz({
   }
 
 
+  /**
+   * Estado pré-prova.
+   */
   if (
     !attempt
   ) {
@@ -1072,11 +1704,13 @@ export function SimulationQuiz({
           </div>
         </section>
 
+
         <section className="container">
           <div className="sim-start-card">
             <h2>
               Preparado para começar?
             </h2>
+
 
             <div className="sim-info-grid">
               <div>
@@ -1089,6 +1723,7 @@ export function SimulationQuiz({
                 </strong>
               </div>
 
+
               <div>
                 <small>
                   TEMPO
@@ -1098,6 +1733,7 @@ export function SimulationQuiz({
                   {simulation.timeLimit} min
                 </strong>
               </div>
+
 
               <div>
                 <small>
@@ -1110,15 +1746,21 @@ export function SimulationQuiz({
               </div>
             </div>
 
+
             <p>
-              ⚠ O relógio oficial começa no servidor ao clicar em iniciar. Recarregar a página não reinicia o tempo.
+              ⚠ O relógio oficial começa no servidor ao clicar em iniciar. Recarregar ou fechar a página não reinicia o tempo.
             </p>
 
+
             {actionError && (
-              <div className="auth-error">
+              <div
+                className="auth-error"
+                role="alert"
+              >
                 {actionError}
               </div>
             )}
+
 
             <button
               type="button"
@@ -1141,6 +1783,10 @@ export function SimulationQuiz({
   }
 
 
+  /**
+   * A partir daqui usamos exclusivamente
+   * as questões do snapshot da tentativa.
+   */
   const questions =
     attempt.questions;
 
@@ -1157,15 +1803,37 @@ export function SimulationQuiz({
     ];
 
 
+  /**
+   * Snapshot sem questão correspondente é uma
+   * situação defensiva excepcional.
+   */
   if (
     !currentQuestion
   ) {
     return (
       <main className="simulation-page">
-        <div className="container">
-          <h2>
-            Tentativa inválida.
-          </h2>
+        <div
+          className="container"
+          style={{
+            padding:
+              "4rem 1rem",
+
+            textAlign:
+              "center",
+          }}
+        >
+          <div
+            className="auth-error"
+            role="alert"
+          >
+            <h2>
+              Tentativa inválida.
+            </h2>
+
+            <p>
+              Não foi possível localizar a questão atual desta tentativa.
+            </p>
+          </div>
         </div>
       </main>
     );
@@ -1231,12 +1899,17 @@ export function SimulationQuiz({
         </div>
       </section>
 
+
       <section className="quiz-shell container">
         {actionError && (
-          <div className="auth-error">
+          <div
+            className="auth-error"
+            role="alert"
+          >
             {actionError}
           </div>
         )}
+
 
         <header>
           <div>
@@ -1248,7 +1921,22 @@ export function SimulationQuiz({
               {questions.length}
             </span>
 
-            <div className="quiz-progress">
+
+            <div
+              className="quiz-progress"
+              role="progressbar"
+              aria-label="Progresso do simulado"
+              aria-valuemin={
+                1
+              }
+              aria-valuemax={
+                questions.length
+              }
+              aria-valuenow={
+                currentIndex +
+                1
+              }
+            >
               <i
                 style={{
                   width:
@@ -1258,12 +1946,17 @@ export function SimulationQuiz({
             </div>
           </div>
 
+
           <strong
             className={
               timeWarning
                 ? "time-warning"
                 : ""
             }
+            role="timer"
+            aria-label={`Tempo restante: ${formatTime(
+              timeLeft
+            )}`}
           >
             ⏱{" "}
             {formatTime(
@@ -1272,15 +1965,18 @@ export function SimulationQuiz({
           </strong>
         </header>
 
+
         <div className="quiz-content">
           <aside>
             <span>
               DISCIPLINA
             </span>
 
+
             <b>
               {currentQuestion.subject}
             </b>
+
 
             {currentQuestion.difficulty && (
               <small
@@ -1296,7 +1992,9 @@ export function SimulationQuiz({
               </small>
             )}
 
+
             <hr />
+
 
             <div className="quiz-nav-stats">
               <small>
@@ -1309,42 +2007,73 @@ export function SimulationQuiz({
               </strong>
             </div>
 
-            <div className="quiz-question-nav">
+
+            <div
+              className="quiz-question-nav"
+              aria-label="Navegação entre questões"
+            >
               {questions.map(
                 (
                   question,
                   index
-                ) => (
-                  <button
-                    type="button"
-                    key={
-                      question.id
-                    }
-                    className={`q-nav-btn ${
-                      index ===
-                      currentIndex
-                        ? "current"
-                        : ""
-                    } ${
-                      answers[index]
-                        ?.selectedOption !==
-                      null
-                        ? "answered"
-                        : ""
-                    }`}
-                    onClick={() =>
-                      setCurrentIndex(
-                        index
-                      )
-                    }
-                  >
-                    {index +
-                      1}
-                  </button>
-                )
+                ) => {
+                  const answered =
+                    answers[index]
+                      ?.selectedOption !==
+                    null &&
+                    answers[index]
+                      ?.selectedOption !==
+                    undefined;
+
+
+                  return (
+                    <button
+                      type="button"
+                      key={
+                        question.id
+                      }
+                      className={`q-nav-btn ${
+                        index ===
+                        currentIndex
+                          ? "current"
+                          : ""
+                      } ${
+                        answered
+                          ? "answered"
+                          : ""
+                      }`}
+                      onClick={() =>
+                        setCurrentIndex(
+                          index
+                        )
+                      }
+                      aria-current={
+                        index ===
+                        currentIndex
+                          ? "step"
+                          : undefined
+                      }
+                      aria-label={`Ir para questão ${
+                        index +
+                        1
+                      }${
+                        answered
+                          ? ", respondida"
+                          : ", não respondida"
+                      }`}
+                      disabled={
+                        submitting
+                      }
+                    >
+                      {index +
+                        1}
+                    </button>
+                  );
+                }
               )}
             </div>
           </aside>
+
 
           <article>
             <span>
@@ -1354,51 +2083,76 @@ export function SimulationQuiz({
                 1}
             </span>
 
+
             <h2>
               {currentQuestion.questionText}
             </h2>
 
-            <div className="answers">
+
+            <div
+              className="answers"
+              role="group"
+              aria-label={`Alternativas da questão ${
+                currentIndex +
+                1
+              }`}
+            >
               {currentQuestion.options.map(
                 (
                   option,
                   optionIndex
-                ) => (
-                  <button
-                    type="button"
-                    key={
-                      optionIndex
-                    }
-                    onClick={() =>
-                      selectOption(
+                ) => {
+                  const selected =
+                    currentAnswer
+                      ?.selectedOption ===
+                    optionIndex;
+
+
+                  return (
+                    <button
+                      type="button"
+                      key={
                         optionIndex
-                      )
-                    }
-                    className={
-                      currentAnswer
-                        ?.selectedOption ===
-                      optionIndex
-                        ? "selected"
-                        : ""
-                    }
-                    disabled={
-                      submitting ||
-                      timeLeft <=
-                        0
-                    }
-                  >
-                    <b>
-                      {String.fromCharCode(
+                      }
+                      onClick={() =>
+                        selectOption(
+                          optionIndex
+                        )
+                      }
+                      className={
+                        selected
+                          ? "selected"
+                          : ""
+                      }
+                      disabled={
+                        submitting ||
+                        timeLeft <=
+                          0
+                      }
+                      aria-pressed={
+                        selected
+                      }
+                      aria-label={`Alternativa ${String.fromCharCode(
                         65 +
                           optionIndex
-                      )}
-                    </b>
+                      )}: ${option}`}
+                    >
+                      <b
+                        aria-hidden="true"
+                      >
+                        {String.fromCharCode(
+                          65 +
+                            optionIndex
+                        )}
+                      </b>
 
-                    {option}
-                  </button>
-                )
+                      {option}
+                    </button>
+                  );
+                }
               )}
             </div>
+
 
             <footer className="quiz-actions">
               <button
@@ -1409,12 +2163,13 @@ export function SimulationQuiz({
                 }
                 disabled={
                   currentIndex ===
-                  0 ||
+                    0 ||
                   submitting
                 }
               >
                 ← Anterior
               </button>
+
 
               {currentIndex <
               questions.length -

@@ -1446,6 +1446,102 @@ export async function startOrResumeSimulationAttempt(
 }
 
 
+export async function getActiveSimulationAttemptForUser(
+  userId:
+    number,
+  simulationId:
+    number,
+  now:
+    Date =
+    new Date()
+): Promise<ResolveSimulationAttemptDecision> {
+  if (
+    !isValidId(
+      userId
+    ) ||
+    !isValidId(
+      simulationId
+    ) ||
+    !Number.isFinite(
+      now.getTime()
+    )
+  ) {
+    return {
+      ok:
+        false,
+
+      reason:
+        "invalid_input",
+    };
+  }
+
+
+  await initDatabase();
+
+
+  /**
+   * Antes de procurar uma tentativa aberta,
+   * convertemos qualquer tentativa vencida
+   * para expired.
+   *
+   * Isso também libera o índice UNIQUE parcial
+   * para uma futura nova tentativa.
+   */
+  const sqlite =
+    getSqliteConnection();
+
+
+  const activeAttempt =
+    sqlite.transaction(
+      () => {
+        expireStaleAttempt(
+          userId,
+          simulationId,
+          now
+        );
+
+
+        return getActiveAttemptRow(
+          userId,
+          simulationId
+        );
+      }
+    )();
+
+
+  if (
+    !activeAttempt
+  ) {
+    return {
+      ok:
+        false,
+
+      reason:
+        "attempt_not_found",
+    };
+  }
+
+
+  /**
+   * A resolução normal continua sendo a
+   * autoridade para:
+   *
+   * - owner;
+   * - entitlement;
+   * - refund;
+   * - despublicação;
+   * - expiração;
+   * - integridade do snapshot.
+   */
+  return resolveSimulationAttemptForUser(
+    userId,
+    simulationId,
+    activeAttempt.token,
+    now
+  );
+}
+
+
 export async function resolveSimulationAttemptForUser(
   userId:
     number,
