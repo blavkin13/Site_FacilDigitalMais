@@ -7,6 +7,14 @@ import type {
 } from "next/server";
 
 import {
+  validateSession,
+} from "./lib/auth";
+
+import {
+  initDatabase,
+} from "./db/init";
+
+import {
   validateSameOriginMutation,
 } from "./lib/request-security";
 
@@ -104,11 +112,12 @@ export async function proxy(
 
 
   /**
-   * APIs entram no Proxy apenas para a barreira
-   * HTTP genérica.
+   * APIs passam pelo Proxy exclusivamente para
+   * a barreira HTTP genérica de CSRF.
    *
-   * Autenticação e autorização continuam dentro
-   * das próprias rotas.
+   * Autenticação e autorização continuam sendo
+   * verificadas independentemente pelas próprias
+   * Route Handlers.
    */
   if (
     pathname.startsWith(
@@ -179,6 +188,14 @@ export async function proxy(
     );
 
 
+  /**
+   * Para as demais páginas protegidas, mantemos
+   * o comportamento histórico:
+   *
+   * a presença do cookie permite que a página
+   * continue e as APIs internas fazem a validação
+   * server-side definitiva.
+   */
   if (
     !isAdminRoute
   ) {
@@ -187,47 +204,39 @@ export async function proxy(
 
 
   /**
-   * O painel administrativo recebe uma segunda
-   * verificação da sessão e da role.
+   * ADMIN
    *
-   * As APIs administrativas continuam sendo a
-   * barreira definitiva de autorização.
+   * Não fazemos fetch() contra /api/auth/me.
+   *
+   * O Proxy do Next.js 16 executa em Node.js,
+   * portanto podemos validar diretamente a sessão
+   * armazenada no SQLite.
+   *
+   * Isso evita:
+   *
+   * browser HTTPS
+   *      ↓
+   * reverse proxy
+   *      ↓
+   * Next HTTP interno
+   *      ↓
+   * self-fetch HTTPS incorreto
+   *
+   * que anteriormente produzia
+   * ERR_SSL_WRONG_VERSION_NUMBER em Codespaces.
    */
   try {
-    const meResponse =
-      await fetch(
-        `${request.nextUrl.origin}/api/auth/me`,
-        {
-          headers: {
-            cookie:
-              request.headers.get(
-                "cookie"
-              ) ||
-              "",
-          },
+    await initDatabase();
 
-          cache:
-            "no-store",
-        }
+
+    const user =
+      await validateSession(
+        sessionToken
       );
 
 
     if (
-      !meResponse.ok
-    ) {
-      return redirectToLogin(
-        request,
-        pathname
-      );
-    }
-
-
-    const meData =
-      await meResponse.json();
-
-
-    if (
-      !meData.authenticated
+      !user
     ) {
       return redirectToLogin(
         request,
@@ -237,7 +246,7 @@ export async function proxy(
 
 
     if (
-      meData.user?.role !==
+      user.role !==
       "admin"
     ) {
       const homeUrl =
@@ -263,10 +272,11 @@ export async function proxy(
     error
   ) {
     /**
-     * FAIL CLOSED.
+     * FAIL CLOSED
      *
-     * Falha de rede, parsing ou verificação não
-     * pode liberar silenciosamente o painel.
+     * Qualquer falha ao abrir o banco, validar a
+     * sessão ou resolver o usuário bloqueia o
+     * acesso administrativo.
      */
     console.error(
       "Falha na verificação administrativa:",
@@ -287,10 +297,10 @@ export async function proxy(
 
 export const config = {
   /**
-   * APIs agora passam pelo Proxy para validação
-   * same-origin.
+   * APIs precisam passar pelo Proxy por causa
+   * da proteção CSRF.
    *
-   * Apenas assets estáticos são ignorados.
+   * Assets estáticos continuam excluídos.
    */
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2)$).*)",

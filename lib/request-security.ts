@@ -12,11 +12,11 @@ const SAFE_METHODS =
 
 
 /**
- * Endpoints chamados legitimamente por serviços
- * externos e que possuem sua própria validação.
+ * Endpoints legitimamente chamados por serviços
+ * externos.
  *
- * Nunca adicione aqui uma API usada pelo browser
- * apenas para "resolver" um erro de CSRF.
+ * Não adicione aqui endpoints utilizados pelo
+ * browser apenas para contornar CSRF.
  */
 const CSRF_EXEMPT_PATHS =
   new Set([
@@ -64,6 +64,53 @@ function normalizeOrigin(
 }
 
 
+function firstForwardedValue(
+  value:
+    string | null
+) {
+  if (
+    !value
+  ) {
+    return null;
+  }
+
+
+  const first =
+    value
+      .split(
+        ","
+      )[0]
+      ?.trim();
+
+
+  return first ||
+    null;
+}
+
+
+function isValidHostHeader(
+  value:
+    string
+) {
+  /**
+   * Hostname IPv4/IPv6/domínio + porta opcional.
+   *
+   * Principal objetivo aqui é impedir caracteres
+   * que transformariam o header em uma URL
+   * arbitrária.
+   */
+  return (
+    value.length >
+      0 &&
+    value.length <=
+      253 &&
+    !/[\s/\\?#@]/.test(
+      value
+    )
+  );
+}
+
+
 function addConfiguredOrigin(
   origins:
     Set<string>,
@@ -93,7 +140,71 @@ function addConfiguredOrigin(
 }
 
 
-function getAllowedOrigins(
+function addHeaderDerivedOrigin(
+  origins:
+    Set<string>,
+  {
+    host,
+    protocol,
+  }: {
+    host:
+      string | null;
+
+    protocol:
+      string | null;
+  }
+) {
+  if (
+    !host ||
+    !isValidHostHeader(
+      host
+    )
+  ) {
+    return;
+  }
+
+
+  if (
+    protocol !==
+      "http" &&
+    protocol !==
+      "https"
+  ) {
+    return;
+  }
+
+
+  const normalized =
+    normalizeOrigin(
+      `${protocol}://${host}`
+    );
+
+
+  if (
+    normalized
+  ) {
+    origins.add(
+      normalized
+    );
+  }
+}
+
+
+/**
+ * Calcula as origens pelas quais esta requisição
+ * legitimamente pode ter chegado.
+ *
+ * Isso é necessário porque, atrás de:
+ *
+ * - GitHub Codespaces;
+ * - Nginx;
+ * - outro reverse proxy;
+ *
+ * request.nextUrl.origin pode representar a
+ * comunicação interna, enquanto Origin representa
+ * a URL pública utilizada pelo navegador.
+ */
+export function getAllowedRequestOrigins(
   request:
     NextRequest
 ) {
@@ -102,10 +213,7 @@ function getAllowedOrigins(
 
 
   /**
-   * Origem vista pelo próprio Next.js.
-   *
-   * Em produção o Nginx deverá preservar Host
-   * e protocolo encaminhados corretamente.
+   * Origem que o próprio Next.js calculou.
    */
   allowed.add(
     request.nextUrl.origin
@@ -113,10 +221,7 @@ function getAllowedOrigins(
 
 
   /**
-   * Origem canônica opcional.
-   *
-   * Facilita deploy atrás de reverse proxy sem
-   * enfraquecer a comparação para qualquer Host.
+   * Origem explicitamente configurada.
    */
   addConfiguredOrigin(
     allowed,
@@ -129,6 +234,78 @@ function getAllowedOrigins(
     allowed,
     process.env
       .NEXT_PUBLIC_BASE_URL
+  );
+
+
+  /**
+   * Origem pública preservada pelo reverse proxy.
+   *
+   * GitHub Codespaces e Nginx normalmente
+   * encaminham esses valores.
+   */
+  const forwardedHost =
+    firstForwardedValue(
+      request.headers.get(
+        "x-forwarded-host"
+      )
+    );
+
+
+  const forwardedProtocol =
+    firstForwardedValue(
+      request.headers.get(
+        "x-forwarded-proto"
+      )
+    )?.toLowerCase() ??
+    null;
+
+
+  addHeaderDerivedOrigin(
+    allowed,
+    {
+      host:
+        forwardedHost,
+
+      protocol:
+        forwardedProtocol,
+    }
+  );
+
+
+  /**
+   * Host é um header controlado pela camada HTTP
+   * do navegador/proxy e é mais confiável para
+   * este propósito do que tentar adivinhar a URL
+   * pública a partir de localhost.
+   *
+   * Se X-Forwarded-Proto existir, preservamos o
+   * protocolo externo. Caso contrário usamos o
+   * protocolo percebido pelo Next.js.
+   */
+  const host =
+    request.headers.get(
+      "host"
+    );
+
+
+  const requestProtocol =
+    request.nextUrl.protocol
+      .replace(
+        ":",
+        ""
+      )
+      .toLowerCase();
+
+
+  addHeaderDerivedOrigin(
+    allowed,
+    {
+      host,
+
+      protocol:
+        forwardedProtocol ??
+        requestProtocol,
+    }
   );
 
 
@@ -176,25 +353,10 @@ export function requiresCsrfCheck(
 
 
 /**
- * Defesa CSRF baseada em Origin + Fetch Metadata.
+ * Defesa CSRF baseada em Origin e Fetch Metadata.
  *
- * A sessão já utiliza SameSite=Lax, portanto esta
- * verificação é uma camada adicional.
- *
- * Regras:
- *
- * 1. Se Origin existe, ele PRECISA ser exatamente
- *    uma origem permitida.
- *
- * 2. Se Origin não existe mas Sec-Fetch-Site diz
- *    cross-site/same-site, rejeitamos.
- *
- * 3. Clientes não-browser e testes que não enviam
- *    nenhum dos dois headers continuam possíveis.
- *
- * Um ataque originado em navegador moderno envia
- * Origin ou Fetch Metadata, portanto não ganha
- * acesso apenas omitindo Origin via JavaScript.
+ * Sessões usam SameSite=Lax, portanto esta é uma
+ * segunda camada de proteção.
  */
 export function validateSameOriginMutation(
   request:
@@ -220,7 +382,7 @@ export function validateSameOriginMutation(
 
   if (
     rawOrigin !==
-    null
+      null
   ) {
     const origin =
       normalizeOrigin(
@@ -242,7 +404,7 @@ export function validateSameOriginMutation(
 
 
     const allowedOrigins =
-      getAllowedOrigins(
+      getAllowedRequestOrigins(
         request
       );
 
@@ -278,10 +440,10 @@ export function validateSameOriginMutation(
 
 
   /**
-   * same-site NÃO significa same-origin.
+   * same-site não significa same-origin.
    *
-   * Um subdomínio comprometido não deve poder
-   * executar mutações autenticadas.
+   * Outro subdomínio da mesma organização não
+   * deve receber permissão implicitamente.
    */
   if (
     fetchSite ===
@@ -317,13 +479,12 @@ export function validateSameOriginMutation(
 
 
   /**
-   * Sem Origin e sem Fetch Metadata:
+   * Clientes server-to-server legítimos podem
+   * não enviar Origin nem Fetch Metadata.
    *
-   * preservamos clientes server-to-server,
-   * scripts administrativos e testes.
-   *
-   * O browser normal continua coberto pelas
-   * regras anteriores e pelo SameSite=Lax.
+   * Navegadores modernos enviam esses sinais nas
+   * requisições relevantes e o cookie ainda está
+   * protegido por SameSite=Lax.
    */
   return {
     allowed:

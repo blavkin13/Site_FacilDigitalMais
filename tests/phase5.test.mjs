@@ -160,8 +160,20 @@ describe("Fase 5 - Admin, Contest Pages e JSON Loader", () => {
         );
 
 
+      const executableContent =
+        content
+          .replace(
+            /\/\*[\s\S]*?\*\//g,
+            ""
+          )
+          .replace(
+            /\/\/[^\n\r]*/g,
+            ""
+          );
+
+
       assert.ok(
-        content.includes(
+        executableContent.includes(
           "ADMIN_ROUTES"
         ),
         "Proxy deve possuir ADMIN_ROUTES"
@@ -169,32 +181,36 @@ describe("Fase 5 - Admin, Contest Pages e JSON Loader", () => {
 
 
       assert.ok(
-        content.includes(
+        executableContent.includes(
           '"/admin"'
         ),
         "Proxy deve proteger /admin"
       );
 
 
-      /**
-       * Não usamos includes() porque o proxy atual
-       * segue a formatação multilinha do projeto:
-       *
-       * meData.user?.role !==
-       *   "admin"
-       *
-       * A regex verifica a semântica independentemente
-       * de espaços e quebras de linha.
-       */
       assert.match(
-        content,
-        /meData\.user\?\.role\s*!==\s*["']admin["']/,
+        executableContent,
+        /validateSession/,
+        "Proxy deve validar sessão administrativa"
+      );
+
+
+      assert.match(
+        executableContent,
+        /await\s+validateSession\(\s*sessionToken\s*\)/,
+        "Proxy deve validar diretamente o cookie de sessão"
+      );
+
+
+      assert.match(
+        executableContent,
+        /user\.role\s*!==\s*["']admin["']/,
         "Proxy deve verificar role admin"
       );
 
 
       assert.ok(
-        content.includes(
+        executableContent.includes(
           "/login"
         ),
         "Proxy deve redirecionar usuário não autenticado para login"
@@ -202,29 +218,35 @@ describe("Fase 5 - Admin, Contest Pages e JSON Loader", () => {
 
 
       assert.ok(
-        content.includes(
+        executableContent.includes(
           "fd-session"
         ),
         "Proxy deve verificar cookie de sessão"
       );
 
 
-      /**
-       * Depois do hardening 4.4B.2A, falha ao
-       * verificar autorização administrativa deve
-       * fechar o acesso em vez de liberar a página.
-       */
       assert.match(
-        content,
+        executableContent,
         /catch[\s\S]*redirectToLogin/,
         "Proxy administrativo deve falhar fechado"
       );
 
 
-      assert.match(
-        content,
-        /meData\.authenticated/,
-        "Proxy deve validar a sessão antes da role"
+      /**
+       * Self-fetch para a própria API administrativa
+       * não deve existir no código executável.
+       */
+      assert.doesNotMatch(
+        executableContent,
+        /\/api\/auth\/me/,
+        "Proxy não deve chamar /api/auth/me internamente"
+      );
+
+
+      assert.doesNotMatch(
+        executableContent,
+        /\bfetch\s*\(/,
+        "Proxy não deve realizar self-fetch para validar admin"
       );
 
 

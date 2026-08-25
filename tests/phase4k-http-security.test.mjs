@@ -369,7 +369,7 @@ describe(
 
 
     test(
-      "Proxy administrativo deve falhar fechado",
+      "Proxy administrativo deve validar sessão diretamente e falhar fechado",
       async () => {
         const source =
           await readFile(
@@ -381,21 +381,72 @@ describe(
           );
 
 
+        /**
+         * Testes estáticos não devem interpretar
+         * comentários como código executável.
+         */
+        const executableSource =
+          source
+            .replace(
+              /\/\*[\s\S]*?\*\//g,
+              ""
+            )
+            .replace(
+              /\/\/[^\n\r]*/g,
+              ""
+            );
+
+
         assert.match(
-          source,
-          /FAIL CLOSED/
+          executableSource,
+          /validateSession/
         );
 
 
         assert.match(
-          source,
+          executableSource,
+          /await\s+initDatabase\(\)/
+        );
+
+
+        assert.match(
+          executableSource,
+          /await\s+validateSession\(\s*sessionToken\s*\)/
+        );
+
+
+        assert.match(
+          executableSource,
+          /user\.role\s*!==\s*["']admin["']/
+        );
+
+
+        /**
+         * A verificação administrativa deve acontecer
+         * diretamente no SQLite.
+         *
+         * Nenhum self-fetch para /api/auth/me deve
+         * existir no código executável.
+         */
+        assert.doesNotMatch(
+          executableSource,
+          /\/api\/auth\/me/
+        );
+
+
+        assert.doesNotMatch(
+          executableSource,
+          /\bfetch\s*\(/
+        );
+
+
+        /**
+         * Qualquer falha de banco/autenticação deve
+         * resultar em bloqueio do painel.
+         */
+        assert.match(
+          executableSource,
           /catch[\s\S]*redirectToLogin/
-        );
-
-
-        assert.match(
-          source,
-          /cache:\s*[\r\n\s]*["']no-store["']/
         );
       }
     );
@@ -514,6 +565,246 @@ describe(
         assert.match(
           source,
           /private, no-store/
+        );
+      }
+    );
+
+
+    test(
+      "Codespaces HTTPS deve ser reconhecido através de headers forwarded",
+      () => {
+        const headers =
+          new Headers();
+
+
+        headers.set(
+          "origin",
+          "https://meu-codespace-5173.app.github.dev"
+        );
+
+
+        headers.set(
+          "host",
+          "localhost:5173"
+        );
+
+
+        headers.set(
+          "x-forwarded-host",
+          "meu-codespace-5173.app.github.dev"
+        );
+
+
+        headers.set(
+          "x-forwarded-proto",
+          "https"
+        );
+
+
+        headers.set(
+          "sec-fetch-site",
+          "same-origin"
+        );
+
+
+        const codespacesRequest =
+          new NextRequest(
+            "http://localhost:5173/api/auth/login",
+            {
+              method:
+                "POST",
+
+              headers,
+            }
+          );
+
+
+        const decision =
+          validateSameOriginMutation(
+            codespacesRequest
+          );
+
+
+        assert.equal(
+          decision.allowed,
+          true
+        );
+      }
+    );
+
+
+    test(
+      "reverse proxy HTTPS deve aceitar Origin correspondente ao Host externo",
+      () => {
+        const headers =
+          new Headers();
+
+
+        headers.set(
+          "origin",
+          "https://facildigitalmais.com"
+        );
+
+
+        headers.set(
+          "host",
+          "facildigitalmais.com"
+        );
+
+
+        headers.set(
+          "x-forwarded-proto",
+          "https"
+        );
+
+
+        headers.set(
+          "sec-fetch-site",
+          "same-origin"
+        );
+
+
+        const proxiedRequest =
+          new NextRequest(
+            "http://127.0.0.1:3000/api/auth/login",
+            {
+              method:
+                "POST",
+
+              headers,
+            }
+          );
+
+
+        const decision =
+          validateSameOriginMutation(
+            proxiedRequest
+          );
+
+
+        assert.equal(
+          decision.allowed,
+          true
+        );
+      }
+    );
+
+
+    test(
+      "forwarded host diferente do Origin deve continuar bloqueado",
+      () => {
+        const headers =
+          new Headers();
+
+
+        headers.set(
+          "origin",
+          "https://site-malicioso.example"
+        );
+
+
+        headers.set(
+          "host",
+          "localhost:5173"
+        );
+
+
+        headers.set(
+          "x-forwarded-host",
+          "meu-codespace-5173.app.github.dev"
+        );
+
+
+        headers.set(
+          "x-forwarded-proto",
+          "https"
+        );
+
+
+        headers.set(
+          "sec-fetch-site",
+          "cross-site"
+        );
+
+
+        const maliciousRequest =
+          new NextRequest(
+            "http://localhost:5173/api/auth/login",
+            {
+              method:
+                "POST",
+
+              headers,
+            }
+          );
+
+
+        const decision =
+          validateSameOriginMutation(
+            maliciousRequest
+          );
+
+
+        assert.equal(
+          decision.allowed,
+          false
+        );
+
+
+        assert.equal(
+          decision.reason,
+          "origin_mismatch"
+        );
+      }
+    );
+
+
+    test(
+      "Host não deve permitir injeção de URL na origem",
+      () => {
+        const headers =
+          new Headers();
+
+
+        headers.set(
+          "origin",
+          "https://evil.example"
+        );
+
+
+        headers.set(
+          "host",
+          "facildigitalmais.com/evil"
+        );
+
+
+        headers.set(
+          "x-forwarded-proto",
+          "https"
+        );
+
+
+        const maliciousRequest =
+          new NextRequest(
+            "http://localhost:5173/api/auth/login",
+            {
+              method:
+                "POST",
+
+              headers,
+            }
+          );
+
+
+        const decision =
+          validateSameOriginMutation(
+            maliciousRequest
+          );
+
+
+        assert.equal(
+          decision.allowed,
+          false
         );
       }
     );
