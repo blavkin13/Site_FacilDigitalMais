@@ -432,6 +432,94 @@ const migrations: Migration[] = [
     `,
   },
 
+  {
+    id:
+      "0005_runtime_performance_indexes",
+
+    description:
+      "Índices operacionais para sessões, resultados, pedidos e downloads",
+
+    sql: `
+      /*
+       * validateSession() já possui UNIQUE(token),
+       * porém tarefas de manutenção precisam
+       * localizar sessões vencidas por expires_at.
+       */
+      CREATE INDEX IF NOT EXISTS
+        idx_sessions_expires_at
+        ON sessions(expires_at);
+
+
+      /*
+       * Rotação de senha administrativa e
+       * revokeUserSessions() trabalham por user_id.
+       */
+      CREATE INDEX IF NOT EXISTS
+        idx_sessions_user_id
+        ON sessions(user_id);
+
+
+      /*
+       * Ranking carrega todos os resultados de
+       * determinado simulado.
+       *
+       * O índice existente:
+       *
+       *   (user_id, simulation_id)
+       *
+       * não é adequado para uma consulta cuja
+       * primeira condição seja simulation_id.
+       */
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_results_simulation_id
+        ON simulation_results(simulation_id);
+
+
+      /*
+       * Histórico do aluno:
+       *
+       * WHERE user_id = ?
+       * ORDER BY completed_at DESC
+       */
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_results_user_completed_at
+        ON simulation_results(
+          user_id,
+          completed_at DESC
+        );
+
+
+      /*
+       * O índice histórico:
+       *
+       *   (product_id, order_id)
+       *
+       * é útil no sentido produto → pedido.
+       *
+       * Entitlement frequentemente percorre:
+       *
+       *   pedido → itens → produto
+       *
+       * portanto também precisamos da direção
+       * inversa.
+       */
+      CREATE INDEX IF NOT EXISTS
+        idx_order_items_order_product
+        ON order_items(
+          order_id,
+          product_id
+        );
+
+
+      /*
+       * Limpeza de links de download expirados.
+       */
+      CREATE INDEX IF NOT EXISTS
+        idx_protected_downloads_expires_at
+        ON protected_downloads(expires_at);
+    `,
+  },
+
 ];
 
 /**

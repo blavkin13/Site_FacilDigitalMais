@@ -18,14 +18,15 @@
     "db:seed-orders": "tsx db/seed-orders.ts",
     "db:seed-simulations": "tsx db/seed-simulations.ts",
     "db:load-products": "tsx scripts/load-products.ts",
+    "db:backup": "tsx scripts/backup-database.ts",
     "admin:rotate-password": "tsx scripts/set-admin-password.ts",
     "storage:check": "tsx scripts/storage-maintenance.ts",
     "storage:cleanup": "tsx scripts/storage-maintenance.ts --apply",
-
+    "maintenance:runtime": "tsx scripts/runtime-maintenance.ts",
+    "maintenance:runtime:apply": "tsx scripts/runtime-maintenance.ts --apply",
     "test:phase0:build": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase0-build.test.mjs",
     "test:phase0:db": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase0.test.mjs",
     "test:phase0": "npm run test:phase0:build && npm run test:phase0:db",
-
     "test:phase1": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/auth.test.mjs",
     "test:phase2": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2.test.mjs",
     "test:phase3": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3.test.mjs",
@@ -33,17 +34,14 @@
     "test:phase4": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4.test.mjs",
     "test:phase5": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase5.test.mjs",
     "test:phase6": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase6.test.mjs",
-
     "test:phase1-products:repo": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase1-products.test.mjs",
     "test:phase1-products:cli": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase1-loader-cli.test.mjs",
     "test:phase1-products": "npm run test:phase1-products:repo && npm run test:phase1-products:cli",
-
     "test:phase2a-storefront": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2a-storefront.test.mjs",
     "test:phase2b-product-page": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2b-product-page.test.mjs",
     "test:phase2c-contest": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2c-contest-page.test.mjs",
     "test:phase2d": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2d-single-source.test.mjs",
     "test:phase2e": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase2e-database-isolation.test.mjs",
-
     "test:phase3a-admin": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3a-admin-products.test.mjs",
     "test:phase3b-admin-ui": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3b-admin-apostilas.test.mjs",
     "test:phase3c-upload": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3c-admin-upload.test.mjs",
@@ -55,40 +53,33 @@
     "test:phase3e-hardening": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3e-download-hardening.test.mjs",
     "test:phase3e-maintenance": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase3e-storage-maintenance.test.mjs",
     "test:phase3e": "npm run test:phase3e-hardening && npm run test:phase3e-maintenance",
-
     "test:phase4a-simulations": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4a-simulation-foundation.test.mjs",
     "test:phase4b-admin-backend": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4b-admin-simulations.test.mjs",
     "test:phase4c-api-security": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4c-simulation-api-security.test.mjs",
     "test:phase4d-seed": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4d-simulation-seed.test.mjs",
     "test:phase4-backend": "npm run test:phase4a-simulations && npm run test:phase4b-admin-backend && npm run test:phase4c-api-security && npm run test:phase4d-seed",
-
     "test:phase4-admin-ui-foundation": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4-admin-ui-foundation.test.mjs",
     "test:phase4-admin-builder": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4-admin-builder.test.mjs",
     "test:phase4-admin-ui": "npm run test:phase4-admin-ui-foundation && npm run test:phase4-admin-builder",
-
     "test:phase4e-attempts": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4e-server-attempts.test.mjs",
     "test:phase4f-submit": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4f-secure-submit.test.mjs",
     "test:phase4g-results": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4g-persistent-results.test.mjs",
     "test:phase4-student-security": "npm run test:phase4e-attempts && npm run test:phase4f-submit && npm run test:phase4g-results",
-
     "test:phase4h-qa": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4h-qa-resilience.test.mjs",
-
     "test:phase4i-auth-hardening": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4i-auth-hardening.test.mjs",
     "test:phase4j-auth-routes": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4j-auth-routes.test.mjs",
     "test:phase4-auth-hardening": "npm run test:phase4i-auth-hardening && npm run test:phase4j-auth-routes",
-
     "test:phase4k-http-security": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4k-http-security.test.mjs",
     "test:phase4-http-security": "npm run test:phase4k-http-security",
-
     "test:phase4l-api-privacy": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4l-api-privacy.test.mjs",
     "test:phase4-api-privacy": "npm run test:phase4l-api-privacy",
-
-    "test:phase4-qa": "npm run test:phase4h-qa && npm run test:phase4-auth-hardening && npm run test:phase4-http-security && npm run test:phase4-api-privacy",
-
+    "test:phase4m-runtime": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4m-runtime-performance.test.mjs",
+    "test:phase4-operations": "npm run test:phase4m-runtime",
+    "test:phase4n-production": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/phase4n-production-readiness.test.mjs",
+    "test:phase4-production": "npm run test:phase4n-production",
+    "test:phase4-qa": "npm run test:phase4h-qa && npm run test:phase4-auth-hardening && npm run test:phase4-http-security && npm run test:phase4-api-privacy && npm run test:phase4-operations && npm run test:phase4-production",
     "test:production-build": "rm -rf .next && next build",
-
     "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:phase3b-admin-ui test:phase3c test:phase3d test:phase3e test:phase4-backend test:phase4-admin-ui test:phase4-student-security test:phase4-qa test:production-build",
-
     "validate": "node scripts/validate-all.mjs"
   },
   "dependencies": {

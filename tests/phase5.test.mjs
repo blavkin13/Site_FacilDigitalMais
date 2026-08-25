@@ -143,44 +143,96 @@ describe("Fase 5 - Admin, Contest Pages e JSON Loader", () => {
   // SEGURANCA / PROXY
   // ============================================================
 
-  test("Proxy protege rotas admin", async () => {
-    const proxyPath = join(
-      process.cwd(),
-      "proxy.ts"
-    );
+  test(
+    "Proxy protege rotas admin",
+    async () => {
+      const proxyPath =
+        join(
+          process.cwd(),
+          "proxy.ts"
+        );
 
-    const content = await readFile(
-      proxyPath,
-      "utf-8"
-    );
 
-    assert.ok(
-      content.includes("ADMIN_ROUTES"),
-      "Proxy deve possuir ADMIN_ROUTES"
-    );
+      const content =
+        await readFile(
+          proxyPath,
+          "utf-8"
+        );
 
-    assert.ok(
-      content.includes('"/admin"'),
-      "Proxy deve proteger /admin"
-    );
 
-    assert.ok(
-      content.includes('role !== "admin"'),
-      "Proxy deve verificar role admin"
-    );
+      assert.ok(
+        content.includes(
+          "ADMIN_ROUTES"
+        ),
+        "Proxy deve possuir ADMIN_ROUTES"
+      );
 
-    assert.ok(
-      content.includes("/login"),
-      "Proxy deve redirecionar usuario nao autenticado para login"
-    );
 
-    assert.ok(
-      content.includes("fd-session"),
-      "Proxy deve verificar cookie de sessao"
-    );
+      assert.ok(
+        content.includes(
+          '"/admin"'
+        ),
+        "Proxy deve proteger /admin"
+      );
 
-    console.log("[OK] Proxy protege rotas admin");
-  });
+
+      /**
+       * Não usamos includes() porque o proxy atual
+       * segue a formatação multilinha do projeto:
+       *
+       * meData.user?.role !==
+       *   "admin"
+       *
+       * A regex verifica a semântica independentemente
+       * de espaços e quebras de linha.
+       */
+      assert.match(
+        content,
+        /meData\.user\?\.role\s*!==\s*["']admin["']/,
+        "Proxy deve verificar role admin"
+      );
+
+
+      assert.ok(
+        content.includes(
+          "/login"
+        ),
+        "Proxy deve redirecionar usuário não autenticado para login"
+      );
+
+
+      assert.ok(
+        content.includes(
+          "fd-session"
+        ),
+        "Proxy deve verificar cookie de sessão"
+      );
+
+
+      /**
+       * Depois do hardening 4.4B.2A, falha ao
+       * verificar autorização administrativa deve
+       * fechar o acesso em vez de liberar a página.
+       */
+      assert.match(
+        content,
+        /catch[\s\S]*redirectToLogin/,
+        "Proxy administrativo deve falhar fechado"
+      );
+
+
+      assert.match(
+        content,
+        /meData\.authenticated/,
+        "Proxy deve validar a sessão antes da role"
+      );
+
+
+      console.log(
+        "[OK] Proxy protege rotas admin"
+      );
+    }
+  );
 
   // ============================================================
   // APIs ADMIN

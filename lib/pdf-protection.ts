@@ -17,7 +17,6 @@ import {
 import {
   isAbsolute,
   join,
-  resolve,
 } from "node:path";
 
 import {
@@ -60,6 +59,16 @@ export function getProtectedPdfDirectory(): string {
       ?.trim();
 
 
+  /**
+   * Desenvolvimento local.
+   *
+   * O caminho padrão fica deliberadamente
+   * restrito ao diretório data/protected.
+   *
+   * Isso permite ao file tracer do Next.js
+   * compreender que o armazenamento padrão
+   * não aponta arbitrariamente para o projeto.
+   */
   if (
     !configuredPath
   ) {
@@ -71,19 +80,31 @@ export function getProtectedPdfDirectory(): string {
   }
 
 
+  /**
+   * Quando PROTECTED_PDF_DIR estiver configurada,
+   * aceitamos somente caminho absoluto.
+   *
+   * Exemplo de produção:
+   *
+   * /var/www/facildigitalmais/storage/protected
+   *
+   * Não resolvemos caminhos relativos
+   * dinamicamente a partir do diretório atual,
+   * evitando tracing amplo e ambiguidades quando
+   * o processo for iniciado pelo PM2.
+   */
   if (
-    isAbsolute(
+    !isAbsolute(
       configuredPath
     )
   ) {
-    return configuredPath;
+    throw new Error(
+      "PROTECTED_PDF_DIR deve ser um caminho absoluto."
+    );
   }
 
 
-  return resolve(
-    process.cwd(),
-    configuredPath
-  );
+  return configuredPath;
 }
 
 
