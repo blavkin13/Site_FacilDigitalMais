@@ -143,44 +143,118 @@ describe("Fase 5 - Admin, Contest Pages e JSON Loader", () => {
   // SEGURANCA / PROXY
   // ============================================================
 
-  test("Proxy protege rotas admin", async () => {
-    const proxyPath = join(
-      process.cwd(),
-      "proxy.ts"
-    );
+  test(
+    "Proxy protege rotas admin",
+    async () => {
+      const proxyPath =
+        join(
+          process.cwd(),
+          "proxy.ts"
+        );
 
-    const content = await readFile(
-      proxyPath,
-      "utf-8"
-    );
 
-    assert.ok(
-      content.includes("ADMIN_ROUTES"),
-      "Proxy deve possuir ADMIN_ROUTES"
-    );
+      const content =
+        await readFile(
+          proxyPath,
+          "utf-8"
+        );
 
-    assert.ok(
-      content.includes('"/admin"'),
-      "Proxy deve proteger /admin"
-    );
 
-    assert.ok(
-      content.includes('role !== "admin"'),
-      "Proxy deve verificar role admin"
-    );
+      const executableContent =
+        content
+          .replace(
+            /\/\*[\s\S]*?\*\//g,
+            ""
+          )
+          .replace(
+            /\/\/[^\n\r]*/g,
+            ""
+          );
 
-    assert.ok(
-      content.includes("/login"),
-      "Proxy deve redirecionar usuario nao autenticado para login"
-    );
 
-    assert.ok(
-      content.includes("fd-session"),
-      "Proxy deve verificar cookie de sessao"
-    );
+      assert.ok(
+        executableContent.includes(
+          "ADMIN_ROUTES"
+        ),
+        "Proxy deve possuir ADMIN_ROUTES"
+      );
 
-    console.log("[OK] Proxy protege rotas admin");
-  });
+
+      assert.ok(
+        executableContent.includes(
+          '"/admin"'
+        ),
+        "Proxy deve proteger /admin"
+      );
+
+
+      assert.match(
+        executableContent,
+        /validateSession/,
+        "Proxy deve validar sessão administrativa"
+      );
+
+
+      assert.match(
+        executableContent,
+        /await\s+validateSession\(\s*sessionToken\s*\)/,
+        "Proxy deve validar diretamente o cookie de sessão"
+      );
+
+
+      assert.match(
+        executableContent,
+        /user\.role\s*!==\s*["']admin["']/,
+        "Proxy deve verificar role admin"
+      );
+
+
+      assert.ok(
+        executableContent.includes(
+          "/login"
+        ),
+        "Proxy deve redirecionar usuário não autenticado para login"
+      );
+
+
+      assert.ok(
+        executableContent.includes(
+          "fd-session"
+        ),
+        "Proxy deve verificar cookie de sessão"
+      );
+
+
+      assert.match(
+        executableContent,
+        /catch[\s\S]*redirectToLogin/,
+        "Proxy administrativo deve falhar fechado"
+      );
+
+
+      /**
+       * Self-fetch para a própria API administrativa
+       * não deve existir no código executável.
+       */
+      assert.doesNotMatch(
+        executableContent,
+        /\/api\/auth\/me/,
+        "Proxy não deve chamar /api/auth/me internamente"
+      );
+
+
+      assert.doesNotMatch(
+        executableContent,
+        /\bfetch\s*\(/,
+        "Proxy não deve realizar self-fetch para validar admin"
+      );
+
+
+      console.log(
+        "[OK] Proxy protege rotas admin"
+      );
+    }
+  );
 
   // ============================================================
   // APIs ADMIN

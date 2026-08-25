@@ -38,7 +38,8 @@ describe(
 
         testEnvironment =
           await createIsolatedDatabase({
-            admin: true,
+            admin:
+              true,
           });
 
 
@@ -138,7 +139,7 @@ describe(
 
 
     test(
-      "Validar hash de senha sem persistência externa",
+      "Validar hash moderno de senha sem persistência externa",
       async () => {
         const {
           hashPassword,
@@ -153,55 +154,70 @@ describe(
           "teste123";
 
 
-        const hash =
-          hashPassword(
+        const firstHash =
+          await hashPassword(
             password
           );
 
 
-        assert.equal(
-          hash.length,
-          64
+        const secondHash =
+          await hashPassword(
+            password
+          );
+
+
+        assert.match(
+          firstHash,
+          /^scrypt\$v1\$32768\$8\$1\$/
+        );
+
+
+        assert.match(
+          secondHash,
+          /^scrypt\$v1\$32768\$8\$1\$/
+        );
+
+
+        /**
+         * Salt aleatório:
+         * a mesma senha NÃO deve produzir
+         * exatamente o mesmo hash.
+         */
+        assert.notEqual(
+          firstHash,
+          secondHash
         );
 
 
         assert.equal(
-          verifyPassword(
+          await verifyPassword(
             password,
-            hash
+            firstHash
           ),
           true
         );
 
 
         assert.equal(
-          verifyPassword(
+          await verifyPassword(
             "senhaErrada",
-            hash
+            firstHash
           ),
           false
         );
 
 
         assert.equal(
-          verifyPassword(
+          await verifyPassword(
             "",
-            hash
+            firstHash
           ),
           false
-        );
-
-
-        assert.equal(
-          hashPassword(
-            password
-          ),
-          hash
         );
 
 
         console.log(
-          "✅ Sistema de hash funcionando"
+          "✅ Sistema de hash scrypt funcionando"
         );
       }
     );
@@ -226,15 +242,15 @@ describe(
           generateSessionToken();
 
 
-        assert.equal(
-          token1.length,
-          64
+        assert.match(
+          token1,
+          /^[a-f0-9]{64}$/
         );
 
 
-        assert.equal(
-          token2.length,
-          64
+        assert.match(
+          token2,
+          /^[a-f0-9]{64}$/
         );
 
 
@@ -249,9 +265,12 @@ describe(
 
 
         for (
-          let index = 0;
-          index < 10;
-          index += 1
+          let index =
+            0;
+          index <
+            10;
+          index +=
+            1
         ) {
           tokens.add(
             generateSessionToken()
@@ -294,13 +313,15 @@ describe(
           "questions",
           "simulations",
           "simulationResults",
+          "simulationAttempts",
           "sessions",
           "protectedDownloads",
         ];
 
 
         for (
-          const table of requiredTables
+          const table of
+            requiredTables
         ) {
           assert.ok(
             schemaContent.includes(
@@ -312,7 +333,7 @@ describe(
 
 
         console.log(
-          "✅ Schema contém todas as tabelas necessárias"
+          "✅ Schema contém as tabelas necessárias"
         );
       }
     );
@@ -320,15 +341,10 @@ describe(
 
     test(
       "Validar que auth.ts exporta funções necessárias",
-      () => {
-        const authContent =
-          readFileSync(
-            join(
-              process.cwd(),
-              "lib",
-              "auth.ts"
-            ),
-            "utf8"
+      async () => {
+        const auth =
+          await import(
+            "../lib/auth.ts"
           );
 
 
@@ -340,17 +356,20 @@ describe(
           "authenticateUser",
           "validateSession",
           "logoutSession",
+          "revokeUserSessions",
           "cleanupExpiredSessions",
         ];
 
 
         for (
-          const functionName of requiredFunctions
+          const functionName of
+            requiredFunctions
         ) {
-          assert.ok(
-            authContent.includes(
-              `function ${functionName}`
-            ),
+          assert.equal(
+            typeof auth[
+              functionName
+            ],
+            "function",
             `Função ${functionName} deve estar exportada`
           );
         }
@@ -364,13 +383,71 @@ describe(
 
 
     test(
+      "Administrador de teste deve usar hash moderno",
+      () => {
+        const sqlite =
+          new Database(
+            testEnvironment
+              .databasePath,
+            {
+              readonly:
+                true,
+            }
+          );
+
+
+        try {
+          const admin =
+            sqlite
+              .prepare(`
+                SELECT
+                  email,
+                  role,
+                  password_hash AS passwordHash
+                FROM users
+                WHERE role = 'admin'
+                LIMIT 1
+              `)
+              .get();
+
+
+          assert.ok(
+            admin
+          );
+
+
+          assert.equal(
+            admin.role,
+            "admin"
+          );
+
+
+          assert.match(
+            admin.passwordHash,
+            /^scrypt\$v1\$/
+          );
+        } finally {
+          sqlite.close();
+        }
+
+
+        console.log(
+          "✅ Admin isolado utiliza hash moderno"
+        );
+      }
+    );
+
+
+    test(
       "Validar integridade do banco isolado",
       () => {
         const sqlite =
           new Database(
-            testEnvironment.databasePath,
+            testEnvironment
+              .databasePath,
             {
-              readonly: true,
+              readonly:
+                true,
             }
           );
 
@@ -380,7 +457,8 @@ describe(
             sqlite.pragma(
               "integrity_check",
               {
-                simple: true,
+                simple:
+                  true,
               }
             ),
             "ok"
@@ -423,7 +501,8 @@ describe(
 
     after(
       () => {
-        testEnvironment?.cleanup();
+        testEnvironment
+          ?.cleanup();
 
 
         console.log(

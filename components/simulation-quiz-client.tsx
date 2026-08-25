@@ -1,73 +1,244 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import {
+  useEffect,
+  useState,
+} from "react";
+
 import Link from "next/link";
-import { SimulationQuiz } from "./simulation-quiz";
+
+import {
+  SimulationQuiz,
+} from "./simulation-quiz";
+
 
 interface SimulationData {
-  id: number;
-  title: string;
-  bank: string;
-  description: string | null;
-  timeLimit: number;
-  totalQuestions: number;
+  id:
+    number;
+
+  title:
+    string;
+
+  bank:
+    string;
+
+  description:
+    string | null;
+
+  timeLimit:
+    number;
+
+  totalQuestions:
+    number;
 }
 
-interface Question {
-  id: number;
-  subject: string;
-  questionText: string;
-  options: string[];
-  difficulty: string | null;
-}
 
-export function SimulationQuizClient({ simulationId }: { simulationId: number }) {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [simulation, setSimulation] = useState<SimulationData | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
+export function SimulationQuizClient({
+  simulationId,
+}: {
+  simulationId:
+    number;
+}) {
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(
+      true
+    );
 
-  useEffect(() => {
-    fetchSimulation();
-  }, [simulationId]);
 
-  async function fetchSimulation() {
-    try {
-      const res = await fetch(`/api/simulations/${simulationId}`, {
-        credentials: "include",
-      });
+  const [
+    error,
+    setError,
+  ] =
+    useState(
+      ""
+    );
 
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Erro ao carregar.");
-        return;
+
+  const [
+    simulation,
+    setSimulation,
+  ] =
+    useState<
+      SimulationData | null
+    >(
+      null
+    );
+
+
+  useEffect(
+    () => {
+      let cancelled =
+        false;
+
+
+      async function fetchSimulation() {
+        setLoading(
+          true
+        );
+
+
+        setError(
+          ""
+        );
+
+
+        try {
+          /**
+           * Este endpoint devolve somente
+           * metadados.
+           *
+           * As questões reais serão recebidas
+           * somente pela infraestrutura de
+           * attempts, depois que o relógio
+           * server-side começar.
+           */
+          const response =
+            await fetch(
+              `/api/simulations/${simulationId}`,
+              {
+                credentials:
+                  "include",
+
+                cache:
+                  "no-store",
+              }
+            );
+
+
+          const data =
+            await response.json();
+
+
+          if (
+            cancelled
+          ) {
+            return;
+          }
+
+
+          if (
+            !response.ok
+          ) {
+            setError(
+              data.error ||
+              "Erro ao carregar simulado."
+            );
+
+
+            return;
+          }
+
+
+          if (
+            !data.simulation
+          ) {
+            setError(
+              "Dados do simulado inválidos."
+            );
+
+
+            return;
+          }
+
+
+          setSimulation(
+            data.simulation
+          );
+        } catch {
+          if (
+            !cancelled
+          ) {
+            setError(
+              "Erro de conexão."
+            );
+          }
+        } finally {
+          if (
+            !cancelled
+          ) {
+            setLoading(
+              false
+            );
+          }
+        }
       }
 
-      const data = await res.json();
-      setSimulation(data.simulation);
-      setQuestions(data.questions);
-    } catch {
-      setError("Erro de conexão.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
-  if (loading) {
+      void fetchSimulation();
+
+
+      return () => {
+        cancelled =
+          true;
+      };
+    },
+    [
+      simulationId,
+    ]
+  );
+
+
+  if (
+    loading
+  ) {
     return (
       <main className="simulation-page">
-        <div className="container" style={{ padding: "4rem 1rem", textAlign: "center" }}>
-          <p>Carregando simulado...</p>
+        <div
+          className="container"
+          style={{
+            padding:
+              "4rem 1rem",
+
+            textAlign:
+              "center",
+          }}
+        >
+          <p>
+            Carregando simulado...
+          </p>
         </div>
       </main>
     );
   }
 
-  if (error || !simulation) {
+
+  if (
+    error ||
+    !simulation
+  ) {
     return (
       <main className="simulation-page">
-        <div className="container" style={{ padding: "4rem 1rem", textAlign: "center" }}>
-          <h2>❌ {error || "Simulado não encontrado."}</h2>
-          <Link href="/simulados" className="button button-primary" style={{ marginTop: "1rem", display: "inline-block" }}>
+        <div
+          className="container"
+          style={{
+            padding:
+              "4rem 1rem",
+
+            textAlign:
+              "center",
+          }}
+        >
+          <h2>
+            ❌{" "}
+            {error ||
+              "Simulado não encontrado."}
+          </h2>
+
+
+          <Link
+            href="/simulados"
+            className="button button-primary"
+            style={{
+              marginTop:
+                "1rem",
+
+              display:
+                "inline-block",
+            }}
+          >
             Voltar aos simulados
           </Link>
         </div>
@@ -75,18 +246,12 @@ export function SimulationQuizClient({ simulationId }: { simulationId: number })
     );
   }
 
-  if (questions.length === 0) {
-    return (
-      <main className="simulation-page">
-        <div className="container" style={{ padding: "4rem 1rem", textAlign: "center" }}>
-          <h2>⚠ Este simulado ainda não possui questões cadastradas.</h2>
-          <Link href="/simulados" className="button button-primary" style={{ marginTop: "1rem", display: "inline-block" }}>
-            Voltar
-          </Link>
-        </div>
-      </main>
-    );
-  }
 
-  return <SimulationQuiz simulation={simulation} questions={questions} />;
+  return (
+    <SimulationQuiz
+      simulation={
+        simulation
+      }
+    />
+  );
 }

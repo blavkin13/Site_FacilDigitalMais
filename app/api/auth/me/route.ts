@@ -1,65 +1,125 @@
-import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
-import { initDatabase } from "@/db/init";
+import type {
+  NextRequest,
+} from "next/server";
 
-export async function GET(request: NextRequest) {
+import {
+  validateSession,
+} from "@/lib/auth";
+
+import {
+  initDatabase,
+} from "@/db/init";
+
+import {
+  clearSessionCookie,
+  getSessionToken,
+  privateNoStoreJson,
+} from "@/lib/session-cookie";
+
+
+export async function GET(
+  request:
+    NextRequest
+) {
   try {
     await initDatabase();
 
-    const token = request.cookies.get("fd-session")?.value;
 
-    if (!token) {
-      return NextResponse.json(
-        {
-          authenticated: false,
-          user: null,
-        },
-        { status: 200 }
+    const token =
+      getSessionToken(
+        request
       );
+
+
+    if (
+      !token
+    ) {
+      return privateNoStoreJson({
+        authenticated:
+          false,
+
+        user:
+          null,
+      });
     }
 
-    const user = await validateSession(token);
 
-    if (!user) {
-      const response = NextResponse.json(
-        {
-          authenticated: false,
-          user: null,
-        },
-        { status: 200 }
+    const user =
+      await validateSession(
+        token
       );
 
-      response.cookies.set("fd-session", "", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 0,
-      });
+
+    if (
+      !user
+    ) {
+      const response =
+        privateNoStoreJson({
+          authenticated:
+            false,
+
+          user:
+            null,
+        });
+
+
+      /**
+       * Token inexistente, expirado ou inválido
+       * também é removido do navegador.
+       */
+      clearSessionCookie(
+        response
+      );
+
 
       return response;
     }
 
-    return NextResponse.json({
-      authenticated: true,
+
+    return privateNoStoreJson({
+      authenticated:
+        true,
+
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        cpf: user.cpf,
-        phone: user.phone,
-        role: user.role,
+        id:
+          user.id,
+
+        email:
+          user.email,
+
+        name:
+          user.name,
+
+        cpf:
+          user.cpf,
+
+        phone:
+          user.phone,
+
+        role:
+          user.role,
       },
     });
-  } catch (error) {
-    console.error("Erro ao verificar sessão:", error);
-
-    return NextResponse.json(
-      {
-        authenticated: false,
-        user: null,
-      },
-      { status: 200 }
+  } catch (
+    error
+  ) {
+    console.error(
+      "Erro ao verificar sessão:",
+      error
     );
+
+
+    /**
+     * Mantemos a semântica histórica desta rota:
+     * problemas na consulta de sessão não geram
+     * 500 para o AuthProvider.
+     */
+    return privateNoStoreJson({
+      authenticated:
+        false,
+
+      user:
+        null,
+    });
   }
 }

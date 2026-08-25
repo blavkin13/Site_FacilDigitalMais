@@ -184,6 +184,342 @@ const migrations: Migration[] = [
         ON products(active, contest_slug);
     `,
   },
+  {
+    id: "0003_simulation_management",
+    description: "Relacionamentos, publicação e histórico de simulados",
+    sql: `
+      ALTER TABLE questions
+        ADD COLUMN active INTEGER NOT NULL DEFAULT 1;
+
+      ALTER TABLE questions
+        ADD COLUMN updated_at TEXT;
+
+      UPDATE questions
+      SET updated_at = created_at
+      WHERE updated_at IS NULL;
+
+
+      ALTER TABLE simulations
+        ADD COLUMN updated_at TEXT;
+
+      ALTER TABLE simulations
+        ADD COLUMN published_at TEXT;
+
+      UPDATE simulations
+      SET
+        updated_at = created_at,
+        published_at = CASE
+          WHEN active = 1
+            THEN created_at
+          ELSE published_at
+        END
+      WHERE
+        updated_at IS NULL
+        OR (
+          active = 1
+          AND published_at IS NULL
+        );
+
+
+      ALTER TABLE simulation_results
+        ADD COLUMN snapshot TEXT;
+
+
+      CREATE TABLE IF NOT EXISTS simulation_products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        simulation_id INTEGER NOT NULL
+          REFERENCES simulations(id)
+          ON DELETE CASCADE,
+        product_id INTEGER NOT NULL
+          REFERENCES products(id)
+          ON DELETE CASCADE,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (
+          simulation_id,
+          product_id
+        )
+      );
+
+
+      CREATE TABLE IF NOT EXISTS simulation_questions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        simulation_id INTEGER NOT NULL
+          REFERENCES simulations(id)
+          ON DELETE CASCADE,
+        question_id INTEGER NOT NULL
+          REFERENCES questions(id)
+          ON DELETE CASCADE,
+        position INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (
+          simulation_id,
+          question_id
+        ),
+        UNIQUE (
+          simulation_id,
+          position
+        )
+      );
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_products_product_id
+        ON simulation_products(product_id);
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_questions_question_id
+        ON simulation_questions(question_id);
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_simulations_active
+        ON simulations(active);
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_questions_active_bank_subject
+        ON questions(active, bank, subject);
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_results_user_simulation
+        ON simulation_results(user_id, simulation_id);
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_orders_user_status
+        ON orders(user_id, status);
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_order_items_product_order
+        ON order_items(product_id, order_id);
+
+
+      /*
+       * Migra question_ids legado para a nova
+       * tabela relacional.
+       *
+       * JSON inválido é tratado como array vazio,
+       * evitando abortar a migration inteira.
+       */
+      INSERT OR IGNORE INTO simulation_questions (
+        simulation_id,
+        question_id,
+        position
+      )
+      SELECT
+        simulations.id,
+        CAST(
+          legacy_question.value
+          AS INTEGER
+        ),
+        CAST(
+          legacy_question.key
+          AS INTEGER
+        ) + 1
+      FROM
+        simulations,
+        json_each(
+          CASE
+            WHEN json_valid(
+              simulations.question_ids
+            )
+              THEN simulations.question_ids
+            ELSE '[]'
+          END
+        ) AS legacy_question
+      INNER JOIN questions
+        ON questions.id =
+          CAST(
+            legacy_question.value
+            AS INTEGER
+          )
+      WHERE
+        legacy_question.type = 'integer';
+    `,
+  },
+
+  {
+    id: "0004_simulation_attempts",
+    description: "Tentativas server-side seguras de simulados",
+    sql: `
+      CREATE TABLE IF NOT EXISTS simulation_attempts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        token TEXT NOT NULL UNIQUE,
+
+        user_id INTEGER NOT NULL
+          REFERENCES users(id),
+
+        simulation_id INTEGER NOT NULL
+          REFERENCES simulations(id),
+
+        status TEXT NOT NULL
+          DEFAULT 'in_progress'
+          CHECK (
+            status IN (
+              'in_progress',
+              'completed',
+              'expired',
+              'revoked'
+            )
+          ),
+
+        started_at TEXT NOT NULL,
+
+        expires_at TEXT NOT NULL,
+
+        completed_at TEXT,
+
+        question_snapshot TEXT NOT NULL,
+
+        created_at TEXT NOT NULL
+          DEFAULT (datetime('now')),
+
+        updated_at TEXT NOT NULL
+          DEFAULT (datetime('now'))
+      );
+
+
+      ALTER TABLE simulation_results
+        ADD COLUMN attempt_id INTEGER
+          REFERENCES simulation_attempts(id);
+
+
+      /*
+       * Uma tentativa concluída só pode originar
+       * um resultado.
+       *
+       * SQLite permite múltiplos NULL em índices
+       * UNIQUE, preservando resultados legados.
+       */
+      CREATE UNIQUE INDEX IF NOT EXISTS
+        uq_simulation_results_attempt_id
+        ON simulation_results(attempt_id);
+
+
+      /*
+       * Um aluno pode possuir diversas tentativas
+       * históricas do mesmo simulado, porém apenas
+       * UMA tentativa in_progress por vez.
+       */
+      CREATE UNIQUE INDEX IF NOT EXISTS
+        uq_simulation_attempts_active_user_simulation
+        ON simulation_attempts(
+          user_id,
+          simulation_id
+        )
+        WHERE status = 'in_progress';
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_attempts_user_simulation_status
+        ON simulation_attempts(
+          user_id,
+          simulation_id,
+          status
+        );
+
+
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_attempts_status_expires
+        ON simulation_attempts(
+          status,
+          expires_at
+        );
+    `,
+  },
+
+  {
+    id:
+      "0005_runtime_performance_indexes",
+
+    description:
+      "Índices operacionais para sessões, resultados, pedidos e downloads",
+
+    sql: `
+      /*
+       * validateSession() já possui UNIQUE(token),
+       * porém tarefas de manutenção precisam
+       * localizar sessões vencidas por expires_at.
+       */
+      CREATE INDEX IF NOT EXISTS
+        idx_sessions_expires_at
+        ON sessions(expires_at);
+
+
+      /*
+       * Rotação de senha administrativa e
+       * revokeUserSessions() trabalham por user_id.
+       */
+      CREATE INDEX IF NOT EXISTS
+        idx_sessions_user_id
+        ON sessions(user_id);
+
+
+      /*
+       * Ranking carrega todos os resultados de
+       * determinado simulado.
+       *
+       * O índice existente:
+       *
+       *   (user_id, simulation_id)
+       *
+       * não é adequado para uma consulta cuja
+       * primeira condição seja simulation_id.
+       */
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_results_simulation_id
+        ON simulation_results(simulation_id);
+
+
+      /*
+       * Histórico do aluno:
+       *
+       * WHERE user_id = ?
+       * ORDER BY completed_at DESC
+       */
+      CREATE INDEX IF NOT EXISTS
+        idx_simulation_results_user_completed_at
+        ON simulation_results(
+          user_id,
+          completed_at DESC
+        );
+
+
+      /*
+       * O índice histórico:
+       *
+       *   (product_id, order_id)
+       *
+       * é útil no sentido produto → pedido.
+       *
+       * Entitlement frequentemente percorre:
+       *
+       *   pedido → itens → produto
+       *
+       * portanto também precisamos da direção
+       * inversa.
+       */
+      CREATE INDEX IF NOT EXISTS
+        idx_order_items_order_product
+        ON order_items(
+          order_id,
+          product_id
+        );
+
+
+      /*
+       * Limpeza de links de download expirados.
+       */
+      CREATE INDEX IF NOT EXISTS
+        idx_protected_downloads_expires_at
+        ON protected_downloads(expires_at);
+    `,
+  },
+
 ];
 
 /**

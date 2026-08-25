@@ -1,67 +1,239 @@
-import { NextRequest, NextResponse } from "next/server";
-import { authenticateUser } from "../../../../lib/auth";
-import { initDatabase } from "../../../../db/init";
+import type {
+  NextRequest,
+} from "next/server";
 
-export async function POST(request: NextRequest) {
+import {
+  authenticateUser,
+} from "../../../../lib/auth";
+
+import {
+  initDatabase,
+} from "../../../../db/init";
+
+import {
+  privateNoStoreJson,
+  setSessionCookie,
+} from "../../../../lib/session-cookie";
+
+
+function isPlainObject(
+  value:
+    unknown
+): value is Record<
+  string,
+  unknown
+> {
+  return (
+    typeof value ===
+      "object" &&
+    value !==
+      null &&
+    !Array.isArray(
+      value
+    )
+  );
+}
+
+
+export async function POST(
+  request:
+    NextRequest
+) {
   try {
     await initDatabase();
 
-    const body = await request.json();
-    const { email, password } = body;
 
-    // Validações
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: "Email e senha são obrigatórios." },
-        { status: 400 }
+    let body:
+      unknown;
+
+
+    try {
+      body =
+        await request.json();
+    } catch {
+      return privateNoStoreJson(
+        {
+          error:
+            "Corpo JSON inválido.",
+        },
+        {
+          status:
+            400,
+        }
       );
     }
 
-    if (typeof email !== "string" || typeof password !== "string") {
-      return NextResponse.json(
-        { error: "Dados inválidos." },
-        { status: 400 }
+
+    if (
+      !isPlainObject(
+        body
+      )
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Dados inválidos.",
+        },
+        {
+          status:
+            400,
+        }
       );
     }
 
-    // Autenticar
-    const result = await authenticateUser(email.toLowerCase().trim(), password);
 
-    if (!result) {
-      return NextResponse.json(
-        { error: "Email ou senha incorretos." },
-        { status: 401 }
+    const {
+      email,
+      password,
+    } =
+      body;
+
+
+    if (
+      !email ||
+      !password
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Email e senha são obrigatórios.",
+        },
+        {
+          status:
+            400,
+        }
       );
     }
 
-    const { user, session } = result;
 
-    // Criar resposta com cookie de sessão
-    const response = NextResponse.json({
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
-    });
+    if (
+      typeof email !==
+        "string" ||
+      typeof password !==
+        "string"
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Dados inválidos.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
 
-    // Definir cookie HTTPOnly
-    response.cookies.set("fd-session", session.token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60, // 7 dias
-    });
+
+    /**
+     * Evita entradas exageradamente grandes
+     * chegando à função de derivação de senha.
+     */
+    if (
+      email.length >
+        254 ||
+      password.length >
+        256
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Dados inválidos.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+
+    const normalizedEmail =
+      email
+        .toLowerCase()
+        .trim();
+
+
+    const result =
+      await authenticateUser(
+        normalizedEmail,
+        password
+      );
+
+
+    /**
+     * Mensagem propositalmente genérica:
+     * não revelamos se o email existe.
+     */
+    if (
+      !result
+    ) {
+      return privateNoStoreJson(
+        {
+          error:
+            "Email ou senha incorretos.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
+
+    const {
+      user,
+      session,
+    } =
+      result;
+
+
+    const response =
+      privateNoStoreJson({
+        success:
+          true,
+
+        user: {
+          id:
+            user.id,
+
+          email:
+            user.email,
+
+          name:
+            user.name,
+
+          role:
+            user.role,
+        },
+      });
+
+
+    setSessionCookie(
+      response,
+      session.token
+    );
+
 
     return response;
-  } catch (error) {
-    console.error("Erro no login:", error);
-    return NextResponse.json(
-      { error: "Erro interno do servidor." },
-      { status: 500 }
+  } catch (
+    error
+  ) {
+    console.error(
+      "Erro no login:",
+      error
+    );
+
+
+    return privateNoStoreJson(
+      {
+        error:
+          "Erro interno do servidor.",
+      },
+      {
+        status:
+          500,
+      }
     );
   }
 }

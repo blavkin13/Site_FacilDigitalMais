@@ -1,77 +1,234 @@
-import { NextRequest, NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
-import { getDb } from "../../../db/index";
-import { simulations, orders, users } from "../../../db/schema";
-import { validateSession } from "../../../lib/auth";
-import { initDatabase } from "../../../db/init";
+import type {
+  NextRequest,
+} from "next/server";
 
-// GET /api/simulations — Listar simulados disponíveis
-export async function GET(request: NextRequest) {
+import {
+  NextResponse,
+} from "next/server";
+
+import {
+  asc,
+  eq,
+  inArray,
+} from "drizzle-orm";
+
+import {
+  getDb,
+} from "../../../db/index";
+
+import {
+  simulations,
+} from "../../../db/schema";
+
+import {
+  initDatabase,
+} from "../../../db/init";
+
+import {
+  validateSession,
+} from "../../../lib/auth";
+
+import {
+  getAccessibleSimulationIdsForUser,
+} from "../../../lib/simulation-access";
+
+
+export async function GET(
+  request:
+    NextRequest
+) {
   try {
     await initDatabase();
-    const db = getDb();
 
-    const token = request.cookies.get("fd-session")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+    const token =
+      request.cookies.get(
+        "fd-session"
+      )?.value;
+
+    if (
+      !token
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Não autenticado.",
+        },
+        {
+          status:
+            401,
+        }
+      );
     }
 
-    const user = await validateSession(token);
-    if (!user) {
-      return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
+    const user =
+      await validateSession(
+        token
+      );
+
+    if (
+      !user
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Sessão inválida.",
+        },
+        {
+          status:
+            401,
+        }
+      );
     }
 
-    // Verificar se o usuário tem pelo menos 1 compra
-    const userOrders = await db
-      .select({ id: orders.id })
-      .from(orders)
-      .where(eq(orders.userId, user.id))
-      .limit(1)
-      .all();
+    const accessibleIds =
+      await getAccessibleSimulationIdsForUser(
+        user.id
+      );
 
-    const hasAccess = userOrders.length > 0;
+    if (
+      accessibleIds.length ===
+      0
+    ) {
+      return NextResponse.json(
+        {
+          hasAccess:
+            false,
 
-    if (!hasAccess) {
-      return NextResponse.json({
-        hasAccess: false,
-        message: "Você precisa adquirir pelo menos 1 apostila para acessar os simulados.",
-        banks: [],
-        simulations: [],
-      });
+          message:
+            "Nenhum simulado está disponível para as suas apostilas com pagamento aprovado.",
+
+          banks:
+            [],
+
+          simulations:
+            [],
+        },
+        {
+          headers: {
+            "Cache-Control":
+              "private, no-store",
+          },
+        }
+      );
     }
 
-    // Buscar todos os simulados ativos
-    const allSimulations = await db
-      .select({
-        id: simulations.id,
-        title: simulations.title,
-        bank: simulations.bank,
-        description: simulations.description,
-        timeLimit: simulations.timeLimit,
-        active: simulations.active,
-      })
-      .from(simulations)
-      .where(eq(simulations.active, true))
-      .all();
+    const db =
+      getDb();
 
-    // Agrupar por banca
-    const banksMap = new Map<string, { name: string; count: number }>();
-    for (const sim of allSimulations) {
-      const existing = banksMap.get(sim.bank);
-      if (existing) {
-        existing.count += 1;
+    const availableSimulations =
+      await db
+        .select({
+          id:
+            simulations.id,
+
+          title:
+            simulations.title,
+
+          bank:
+            simulations.bank,
+
+          description:
+            simulations.description,
+
+          timeLimit:
+            simulations.timeLimit,
+        })
+        .from(
+          simulations
+        )
+        .where(
+          inArray(
+            simulations.id,
+            accessibleIds
+          )
+        )
+        .orderBy(
+          asc(
+            simulations.bank
+          ),
+          asc(
+            simulations.title
+          )
+        )
+        .all();
+
+    const banksMap =
+      new Map<
+        string,
+        {
+          name:
+            string;
+
+          count:
+            number;
+        }
+      >();
+
+    for (
+      const simulation of
+        availableSimulations
+    ) {
+      const existing =
+        banksMap.get(
+          simulation.bank
+        );
+
+      if (
+        existing
+      ) {
+        existing.count +=
+          1;
       } else {
-        banksMap.set(sim.bank, { name: sim.bank, count: 1 });
+        banksMap.set(
+          simulation.bank,
+          {
+            name:
+              simulation.bank,
+
+            count:
+              1,
+          }
+        );
       }
     }
 
-    return NextResponse.json({
-      hasAccess: true,
-      banks: Array.from(banksMap.values()),
-      simulations: allSimulations,
-    });
-  } catch (error) {
-    console.error("Erro ao listar simulados:", error);
-    return NextResponse.json({ error: "Erro interno." }, { status: 500 });
+    return NextResponse.json(
+      {
+        hasAccess:
+          true,
+
+        banks:
+          Array.from(
+            banksMap.values()
+          ),
+
+        simulations:
+          availableSimulations,
+      },
+      {
+        headers: {
+          "Cache-Control":
+            "private, no-store",
+        },
+      }
+    );
+  } catch (
+    error
+  ) {
+    console.error(
+      "Erro ao listar simulados:",
+      error
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          "Erro interno.",
+      },
+      {
+        status:
+          500,
+      }
+    );
   }
 }
