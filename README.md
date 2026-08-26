@@ -1,375 +1,425 @@
 # Facil Digital+ - Plataforma de Apostilas para Concursos
 
-![Status](https://img.shields.io/badge/status-pronto%20para%20produ%C3%A7%C3%A3o-green)
-![Node](https://img.shields.io/badge/Node.js-%3E%3D22.13.0-green)
-![Next.js](https://img.shields.io/badge/Next.js-16-black)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
+> Status atual: hardening pre-producao em andamento.
+>
+> Pagamentos reais nao devem ser habilitados antes da conclusao e validacao integral da fase de hardening financeiro P0.
 
-## 📋 Sobre o Projeto
+## Sobre o projeto
 
-Plataforma completa de venda de apostilas digitais para concursos públicos, com:
-- ✅ Catálogo de apostilas por concurso
-- ✅ Sistema de carrinho e checkout (Mercado Pago)
-- ✅ Área do aluno com biblioteca de apostilas
-- ✅ Simulados cronometrados com ranking
-- ✅ Proteção de PDFs com marca d'água e senha (CPF)
-- ✅ Dashboard administrativo com estatísticas
-- ✅ Landing pages dinâmicas por concurso
+A Facil Digital+ e uma plataforma de venda e entrega de apostilas digitais para concursos publicos.
 
-## 🚀 Estrutura do Projeto
-├── app/ # Rotas Next.js
-│ ├── api/ # API Routes
-│ ├── apostilas/ # Catálogo de produtos
-│ ├── concurso/[slug]/ # Landing pages por concurso
-│ ├── checkout/ # Fluxo de compra
-│ ├── minha-conta/ # Dashboard do aluno
-│ ├── simulados/ # Sistema de simulados
-│ ├── admin/ # Dashboard admin
-│ └── login/ # Autenticação
-├── components/ # Componentes React
-├── db/ # Schema Drizzle + Seeds
-├── lib/ # Funções auxiliares
-│ ├── auth.ts # Autenticação
-│ ├── mercadopago.ts # Integração MP
-│ ├── pdf-protection.ts # Proteção de PDFs
-│ └── json-loader-runtime.ts # Loader de produtos
-├── tests/ # Testes automatizados
-└── data/ # Dados (SQLite + JSON)
+A aplicacao inclui:
 
-## 🛠️ Tecnologias
+- catalogo publico de apostilas;
+- paginas por concurso;
+- carrinho e checkout;
+- autenticacao de usuarios;
+- area do aluno;
+- biblioteca de compras;
+- downloads protegidos de PDFs;
+- painel administrativo;
+- banco de questoes;
+- simulados cronometrados;
+- resultados persistentes;
+- ranking anonimizado;
+- integracao com Mercado Pago;
+- backup e rotinas de manutencao do SQLite.
 
-- **Framework**: Next.js 16 + Vite (via Vinext)
-- **Linguagem**: TypeScript
-- **Banco de Dados**: SQLite (Drizzle ORM) / Cloudflare D1
-- **Autenticação**: Cookie-based sessions
-- **Pagamentos**: Mercado Pago
-- **PDFs**: pdf-lib (watermark + proteção)
-- **Gráficos**: Recharts
-- **Testes**: Node.js Test Runner
+## Arquitetura atual
 
-## 📦 Instalação
+A arquitetura oficial do projeto e:
 
-### Pré-requisitos
-- Node.js >= 22.13.0
-- npm ou yarn
+    Internet
+       |
+       v
+    Nginx
+       |
+       v
+    Next.js / Node.js
+    127.0.0.1:3000
+       |
+       v
+    SQLite + Drizzle
 
-### Passos
+Em producao, a aplicacao deve executar em uma unica instancia do Node.js enquanto utilizar SQLite como banco principal.
 
-```bash
-# 1. Clonar o repositório
-git clone https://github.com/blavkin13/Site_FacilDigitalMais.git
-cd Site_FacilDigitalMais
+Nao fazem parte da arquitetura atual:
 
-# 2. Instalar dependências
-npm install
+- Vite;
+- Vinext;
+- Cloudflare Workers;
+- Cloudflare D1.
 
-# 3. Inicializar banco de dados
-npm run db:init
+## Stack tecnica
 
-# 4. Executar seeds (dados de exemplo)
-npm run db:seed
-npm run db:seed-orders
-npm run db:seed-simulations
+- Node.js: >=24.19.0 e <25
+- Next.js: 16.2.6
+- React: 19.2.6
+- TypeScript: 5.9.3
+- SQLite: better-sqlite3
+- ORM: Drizzle ORM
+- Pagamentos: Mercado Pago
+- PDFs: pdf-lib
+- Graficos: Recharts
+- Testes: Node.js Test Runner + tsx
+- Processo de producao: PM2
+- Reverse proxy: Nginx
 
-# 5. Iniciar em desenvolvimento
-npm run dev
+## Estrutura principal
 
-Acesse: http://localhost:5173
+    app/
+      api/
+      admin/
+      apostilas/
+      checkout/
+      concurso/
+      minha-conta/
+      simulados/
 
-🔑 Credenciais de Teste
-Admin
-Email: digicopiamix@facildigitalmais.com
-Senha: 5290Digi$
-URL: /admin
-Aluno de Teste
-Email: teste@teste.com
-Senha: 
+    components/
+    db/
+    lib/
+    scripts/
+    tests/
+    data/
 
-🧪 Testes
-# Rodar todos os testes
-npm run test:all
+### Responsabilidades
 
-# Rodar testes por fase
-npm run test:phase1    # Autenticação (9 testes)
-npm run test:phase2    # API Routes (17 testes)
-npm run test:phase3    # Pedidos + Dashboard (16 testes)
-npm run test:phase3b   # Simulados (19 testes)
-npm run test:phase4    # Checkout + PDFs (19 testes)
-npm run test:phase5    # Admin + Contest (19 testes)
+`app/`
+Rotas, paginas e APIs do Next.js.
 
-Total: 99 testes
-🚀 Deploy na Hostinger
-Opção 1: Hostinger VPS (Recomendado)
-1.Contrate um VPS Hostinger com Ubuntu 22.04
-2.Instale Node.js 22:
-   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-   sudo apt-get install -y nodejs
-3.Instale PM2 (gerenciador de processos):
-   sudo npm install -g pm2
-4.Clone o projeto:
-   cd /var/www
-   git clone https://github.com/blavkin13/Site_FacilDigitalMais.git
-   cd Site_FacilDigitalMais
-5.Configure variáveis:
-   cp .env.example .env
-   nano .env  # Preencha com suas credenciais
-6.Instale dependências e faça build:
-   npm ci
-   npm run build
-7.Inicie com PM2:
-   pm2 start ecosystem.config.js
-   pm2 save
-   pm2 startup
-8.Configure Nginx:
-   sudo apt install nginx
-   sudo cp scripts/nginx-config.conf /etc/nginx/sites-available/facil-digital
-   sudo ln -s /etc/nginx/sites-available/facil-digital /etc/nginx/sites-enabled/
-   sudo nginx -t
-   sudo systemctl restart nginx
-9.Configure SSL com Let's Encrypt:
-   sudo apt install certbot python3-certbot-nginx
-   sudo certbot --nginx -d seusite.com.br
+`components/`
+Componentes React da loja, area do aluno, admin e simulados.
 
-Opção 2: Hostinger Cloud Hosting (Limitado)
-Se usar Cloud Hosting (sem Node.js), será necessário:
-Separar frontend estático
-Backend em VPS separado
-Ou usar serviços serverless
-Recomendação: Use VPS para o projeto completo.
-🔧 Configuração do Mercado Pago
-Acesse: https://www.mercadopago.com.br/developers/panel/app
-Crie uma aplicação
-Obtenha:
-Access Token (produção)
-Webhook Secret (para validar webhooks)
-Configure no .env:
-   MERCADO_PAGO_ACCESS_TOKEN=APP_USR-xxx
-   MERCADO_PAGO_WEBHOOK_SECRET=xxx
+`db/`
+Schema Drizzle, inicializacao, migrations e seeds.
 
-Configure o webhook no painel do MP:
-URL: https://seusite.com.br/api/webhooks/mercadopago
-Eventos: payment
-📚 Fluxo de Funcionamento
-Cliente
-Acessa catálogo de apostilas
-Adiciona ao carrinho (sem login)
-Faz login/cadastro para continuar
-Escolhe método de pagamento
-Redirecionado ao Mercado Pago
-Após pagamento, acesso liberado na biblioteca
-PDFs protegidos com CPF como senha + marca d'água
-Aluno
-Acessa /minha-conta
-Vê biblioteca de apostilas compradas
-Baixa PDFs protegidos
-Acessa simulados cronometrados
-Vê ranking e desempenho
-Admin
-Acessa /admin
-Vê estatísticas de vendas
-Gerencia pedidos (aprovar/reembolsar)
-Gerencia produtos (criar/editar/desativar)
-🔒 Segurança
-✅ Senhas com hash SHA-256 + salt
-✅ Cookies HTTPOnly para sessões
-✅ Proteção de rotas por role (user/admin)
-✅ Webhooks com validação HMAC
-✅ PDFs com senha (CPF) + marca d'água
-✅ Downloads temporários (12h de validade)
-📝 Scripts Disponíveis
+`lib/`
+Autenticacao, seguranca HTTP, Mercado Pago, PDFs, simulados, backup e regras de dominio.
 
-npm run dev                    # Servidor de desenvolvimento
-npm run build                  # Build de produção
-npm run start                  # Servidor de produção
-npm run db:init                # Inicializar banco
-npm run db:seed                # Seed admin
-npm run db:seed-orders         # Seed pedidos
-npm run db:seed-simulations    # Seed simulados
-npm run db:load-products       # Carregar produtos de JSON
-npm run test:all               # Todos os testes
+`scripts/`
+Rotinas operacionais, manutencao e validacao.
 
-📊 Arquitetura do Banco
-Tabelas principais:
-users - Usuários (alunos e admins)
-products - Apostilas
-orders - Pedidos
-order_items - Itens dos pedidos
-questions - Questões de simulados
-simulations - Provas simuladas
-simulation_results - Resultados dos alunos
-sessions - Sessões de autenticação
-protected_downloads - Tokens de download
-🤝 Suporte
-Para dúvidas ou problemas:
-Abra uma issue no repositório
-Consulte a documentação da Hostinger: https://www.hostinger.com.br/tutoriais
-Documentação Next.js: https://nextjs.org/docs
-Desenvolvido com ❤️ para concurseiros 🚀
+`tests/`
+Suites automatizadas e gates de regressao.
 
+`data/`
+Dados locais de desenvolvimento. Testes automatizados nao devem modificar o conteudo persistente desse diretorio.
 
----
+## Instalacao para desenvolvimento
 
-### Arquivo 8: `tests/phase6.test.mjs` — Testes finais
-**Local:** Criar `tests/phase6.test.mjs`
+### Requisitos
 
-```javascript
-import { test, describe, before, after } from "node:test";
-import assert from "node:assert";
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+- Node.js compativel com o campo `engines` do `package.json`;
+- npm;
+- Git.
 
-describe("Fase 6 - Deploy, Otimizações e Documentação", () => {
-  before(() => {
-    console.log("🧪 Preparando testes finais da Fase 6...");
-  });
+Confirme a versao:
 
-  // === DEPLOY ===
+    node --version
+    npm --version
 
-  test("Script de deploy existe", () => {
-    const p = join(process.cwd(), "scripts", "deploy-hostinger.sh");
-    assert.ok(existsSync(p));
-    console.log("✅ Script de deploy existe");
-  });
+Instale as dependencias:
 
-  test("Configuração PM2 existe", () => {
-    const p = join(process.cwd(), "ecosystem.config.js");
-    assert.ok(existsSync(p));
-    console.log("✅ Configuração PM2 existe");
-  });
+    npm ci
 
-  test("Configuração Nginx existe", () => {
-    const p = join(process.cwd(), "scripts", "nginx-config.conf");
-    assert.ok(existsSync(p));
-    console.log("✅ Configuração Nginx existe");
-  });
+Crie a configuracao local a partir de `.env.example`.
 
-  test(".env.example existe", () => {
-    const p = join(process.cwd(), ".env.example");
-    assert.ok(existsSync(p));
-    console.log("✅ .env.example existe");
-  });
+Nunca versione `.env`, `.env.local`, tokens, senhas ou secrets.
 
-  // === DOCUMENTAÇÃO ===
+Aplique as migrations:
 
-  test("README.md completo", async () => {
-    const p = join(process.cwd(), "README.md");
-    assert.ok(existsSync(p), "README.md deve existir");
+    npm run db:migrate
 
-    const content = await readFile(p, "utf-8");
-    
-    // Verificar seções essenciais
-    assert.ok(content.includes("# Facil Digital+"), "Deve ter título");
-    assert.ok(content.includes("Instalação"), "Deve ter seção de instalação");
-    assert.ok(content.includes("Deploy na Hostinger"), "Deve ter guia de deploy");
-    assert.ok(content.includes("Mercado Pago"), "Deve mencionar Mercado Pago");
-    assert.ok(content.includes("test:all"), "Deve mencionar testes");
-    assert.ok(content.includes("Credenciais de Teste"), "Deve ter credenciais");
-    
-    console.log("✅ README.md completo com todas as seções");
-  });
+Inicie o ambiente de desenvolvimento:
 
-  // === SEO ===
+    npm run dev
 
-  test("Sitemap atualizado", async () => {
-    const p = join(process.cwd(), "app", "sitemap.ts");
-    assert.ok(existsSync(p));
+O servidor de desenvolvimento utiliza a porta 5173.
 
-    const content = await readFile(p, "utf-8");
-    assert.ok(content.includes("/concurso/"), "Deve ter rotas de concurso");
-    assert.ok(content.includes("products.map"), "Deve mapear produtos");
-    
-    console.log("✅ Sitemap atualizado com rotas dinâmicas");
-  });
+## Banco de dados
 
-  test("Robots.txt atualizado", async () => {
-    const p = join(process.cwd(), "app", "robots.ts");
-    assert.ok(existsSync(p));
+O projeto utiliza SQLite com better-sqlite3 e Drizzle ORM.
 
-    const content = await readFile(p, "utf-8");
-    assert.ok(content.includes("disallow"), "Deve ter disallow");
-    assert.ok(content.includes("/admin"), "Deve bloquear /admin");
-    assert.ok(content.includes("/api/"), "Deve bloquear /api/");
-    
-    console.log("✅ Robots.txt protege áreas sensíveis");
-  });
+As migrations sao forward-only.
 
-  // === REGRESSÃO FINAL ===
+Migrations que ja tenham sido aplicadas nao devem ser editadas. Novas alteracoes de schema devem ser implementadas por uma nova migration.
 
-  test("Todas as fases anteriores preservadas", () => {
-    const criticalFiles = [
-      // Fase 1
-      "lib/auth.ts",
-      "db/schema.ts",
-      "db/init.ts",
-      "db/seed.ts",
-      
-      // Fase 2
-      "components/auth-provider.tsx",
-      "app/api/auth/login/route.ts",
-      "app/api/auth/register/route.ts",
-      "app/login/page.tsx",
-      
-      // Fase 3
-      "components/student-dashboard.tsx",
-      "components/simulation-quiz.tsx",
-      "app/api/orders/route.ts",
-      "app/api/simulations/route.ts",
-      
-      // Fase 4
-      "components/checkout-real.tsx",
-      "lib/mercadopago.ts",
-      "lib/pdf-protection.ts",
-      "app/api/checkout/create/route.ts",
-      
-      // Fase 5
-      "middleware.ts",
-      "components/admin-dashboard.tsx",
-      "components/contest-landing.tsx",
-      "lib/json-loader-runtime.ts",
-    ];
+Comandos principais:
 
-    for (const path of criticalFiles) {
-      assert.ok(
-        existsSync(join(process.cwd(), path)),
-        `Arquivo crítico ${path} deve existir`
-      );
-    }
+    npm run db:migrate
+    npm run db:backup
+    npm run maintenance:runtime
+    npm run maintenance:runtime:apply
+    npm run storage:check
+    npm run storage:cleanup
 
-    console.log(`✅ ${criticalFiles.length} arquivos críticos preservados`);
-  });
+Seeds sao comandos administrativos ou de desenvolvimento e nao devem ser executados automaticamente durante deploy de producao.
 
-  test("Package.json tem todos os scripts necessários", async () => {
-    const p = join(process.cwd(), "package.json");
-    const content = await readFile(p, "utf-8");
-    const pkg = JSON.parse(content);
+## Autenticacao e sessoes
 
-    const requiredScripts = [
-      "dev",
-      "build",
-      "start",
-      "db:init",
-      "db:seed",
-      "test:phase1",
-      "test:phase2",
-      "test:phase3",
-      "test:phase3b",
-      "test:phase4",
-      "test:phase5",
-      "test:all",
-    ];
+Novas senhas utilizam scrypt versionado.
 
-    for (const script of requiredScripts) {
-      assert.ok(pkg.scripts[script], `Script ${script} deve existir`);
-    }
+Hashes legados podem ser reconhecidos somente para compatibilidade e migrados durante autenticacao valida.
 
-    console.log(`✅ ${requiredScripts.length} scripts essenciais presentes`);
-  });
+As sessoes utilizam cookie `fd-session`.
 
-  after(() => {
-    console.log("✅ Testes da Fase 6 concluídos!");
-    console.log("🎉 PROJETO COMPLETO - PRONTO PARA PRODUÇÃO!");
-  });
-});
+O bearer de novas sessoes nao e armazenado diretamente no SQLite. O banco persiste um fingerprint SHA-256 do token.
 
+Rotas administrativas devem validar autorizacao no servidor independentemente da interface.
 
+O acesso administrativo deve funcionar em modo fail-closed.
+
+## Seguranca HTTP
+
+O projeto utiliza:
+
+- validacao de origem para mutations;
+- protecao CSRF;
+- headers de seguranca;
+- cookies HttpOnly;
+- cookie Secure em producao;
+- SameSite;
+- CSP;
+- HSTS em producao;
+- protecao independente das APIs administrativas.
+
+O webhook do Mercado Pago e isento da barreira CSRF generica porque possui mecanismo proprio de autenticacao.
+
+A autenticacao do webhook deve seguir o protocolo oficial vigente do Mercado Pago.
+
+## Simulados
+
+O acesso a simulados depende de entitlement real.
+
+A cadeia de autorizacao e:
+
+    usuario autenticado
+        ->
+    pedido aprovado
+        ->
+    item comprado
+        ->
+    produto relacionado
+        ->
+    simulado
+
+Administradores nao recebem entitlement automatico apenas por possuirem role administrativa.
+
+Tentativas de simulados sao controladas no servidor.
+
+O cliente nao e autoridade sobre:
+
+- gabarito;
+- score;
+- tempo final;
+- status da tentativa.
+
+Resultados concluidos sao persistidos.
+
+O ranking publico deve permanecer anonimizado.
+
+## PDFs e armazenamento
+
+PDFs originais nao devem ser expostos diretamente por uma URL publica.
+
+Em producao, banco, uploads e PDFs protegidos devem ficar em diretorios persistentes fora da arvore descartavel do release.
+
+Os caminhos sao configurados pelas variaveis:
+
+    DATABASE_PATH
+    DATABASE_BACKUP_DIR
+    UPLOAD_ROOT_DIR
+    PROTECTED_PDF_DIR
+
+Backups do SQLite devem utilizar a Online Backup API.
+
+Nao utilize copia bruta do arquivo principal do SQLite como estrategia de backup durante trafego com WAL ativo.
+
+## Mercado Pago
+
+A integracao com Mercado Pago deve operar em modo fail-closed em producao.
+
+Antes de habilitar pagamentos reais, o fluxo precisa garantir:
+
+- credenciais obrigatorias em producao;
+- referencia externa unica por pedido;
+- correlacao exata entre pagamento e pedido;
+- validacao correta da assinatura do webhook;
+- idempotencia;
+- validacao de valor;
+- tratamento seguro de eventos repetidos;
+- tratamento seguro de refund e chargeback;
+- ausencia de aprovacao automatica em falhas da API;
+- ausencia de fallback de demonstracao em producao;
+- URLs publicas canonicas para retorno do checkout.
+
+Enquanto o hardening financeiro P0 nao estiver concluido e validado, pagamentos reais devem permanecer desabilitados.
+
+Nenhuma credencial real do Mercado Pago deve ser registrada neste repositorio.
+
+## Variaveis de ambiente
+
+Use `.env.example` apenas como referencia.
+
+Segredos reais devem existir somente no ambiente protegido de execucao.
+
+Variaveis principais:
+
+    NODE_ENV
+    PORT
+    APP_BASE_URL
+    NEXT_PUBLIC_BASE_URL
+    DATABASE_PATH
+    DATABASE_BACKUP_DIR
+    DATABASE_BACKUP_RETENTION
+    UPLOAD_ROOT_DIR
+    PROTECTED_PDF_DIR
+    ADMIN_SEED_EMAIL
+    ADMIN_SEED_NAME
+    ADMIN_SEED_PASSWORD
+    MERCADO_PAGO_ACCESS_TOKEN
+    MERCADO_PAGO_WEBHOOK_SECRET
+
+Nunca registre senhas administrativas no README.
+
+Nunca versione access tokens ou webhook secrets.
+
+## Testes
+
+O gate completo do projeto e:
+
+    npm run test:all
+
+O projeto tambem possui:
+
+    npm run validate
+    npm run test:phase6
+    npm run test:phase4n-production
+    npm run build
+
+O `test:all` deve permanecer verde antes de merge para a branch principal.
+
+Os testes devem utilizar bancos isolados e preservar o diretorio `data/`.
+
+Cada nova fase de implementacao deve adicionar ou atualizar cobertura automatizada correspondente.
+
+## Deploy Hostinger VPS
+
+A topologia prevista para producao e:
+
+    HTTPS
+      |
+      v
+    Nginx
+      |
+      v
+    127.0.0.1:3000
+      |
+      v
+    Next.js via PM2
+      |
+      v
+    SQLite persistente
+
+O arquivo PM2 oficial e:
+
+    ecosystem.config.cjs
+
+O processo deve utilizar:
+
+- uma unica instancia;
+- `fork` mode;
+- bind interno em `127.0.0.1:3000`.
+
+Nao utilize cluster PM2 com o SQLite atual.
+
+O Nginx deve preservar corretamente:
+
+- Host;
+- X-Forwarded-Host;
+- X-Forwarded-Proto;
+- X-Real-IP;
+- X-Forwarded-For.
+
+Durante a configuracao atual do projeto, scripts operacionais utilizam `tsx`.
+
+Por isso, o VPS deve instalar as dependencias completas enquanto essa dependencia operacional permanecer em `devDependencies`.
+
+Nao utilizar `npm ci --omit=dev` sem antes refatorar o tooling operacional.
+
+## Diretorios recomendados em producao
+
+Aplicacao:
+
+    /var/www/facil-digital-plus
+
+Banco:
+
+    /var/lib/facil-digital-plus/database/prod.db
+
+Uploads:
+
+    /var/lib/facil-digital-plus/uploads
+
+PDFs protegidos:
+
+    /var/lib/facil-digital-plus/protected
+
+Backups:
+
+    /var/backups/facil-digital-plus/sqlite
+
+Os diretorios persistentes nao devem depender da pasta de um release descartavel.
+
+## Fluxo de alteracoes
+
+O fluxo recomendado e:
+
+    branch
+      ->
+    implementacao incremental
+      ->
+    testes especificos
+      ->
+    npm run test:all
+      ->
+    build
+      ->
+    revisao
+      ->
+    merge na main
+      ->
+    backup
+      ->
+    deploy
+      ->
+    migrations
+      ->
+    restart
+      ->
+    smoke test
+
+Nao utilizar force push para contornar conflitos.
+
+Nao editar diretamente migrations historicas.
+
+## Segredos e credenciais
+
+Este repositorio nao deve conter:
+
+- senhas administrativas;
+- access tokens;
+- webhook secrets;
+- arquivos `.env` reais;
+- credenciais de usuarios de teste reutilizaveis em producao.
+
+Credenciais administrativas devem ser configuradas ou rotacionadas por mecanismo seguro no ambiente correspondente.
+
+## Estado de producao
+
+A base de autenticacao, sessoes, simulados, SQLite, backup e hardening HTTP ja possui cobertura automatizada.
+
+A liberacao comercial com pagamentos reais depende da conclusao do hardening P0 do Mercado Pago e do gate completo de producao.
+
+Somente depois desses gates o deploy definitivo deve ser considerado aprovado.

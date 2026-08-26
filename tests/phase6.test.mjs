@@ -32,19 +32,19 @@ describe("Fase 6 - Deploy, Otimizacoes e Documentacao", () => {
     );
   });
 
-  test("Configuracao PM2 existe", () => {
+  test("Configuracao PM2 oficial existe", () => {
     const p = join(
       process.cwd(),
-      "ecosystem.config.js"
+      "ecosystem.config.cjs"
     );
 
     assert.ok(
       existsSync(p),
-      "ecosystem.config.js deve existir"
+      "ecosystem.config.cjs deve existir"
     );
 
     console.log(
-      "[OK] Configuracao PM2 existe"
+      "[OK] Configuracao PM2 oficial existe"
     );
   });
 
@@ -416,7 +416,7 @@ describe("Fase 6 - Deploy, Otimizacoes e Documentacao", () => {
     );
 
     console.log(
-      "[FINAL] Infraestrutura validada para producao!"
+      "[FINAL] Infraestrutura base validada; readiness depende do gate completo de producao."
     );
   });
 });

@@ -75,7 +75,7 @@ test("API download existe", () => assert(existsSync("app/api/download/[token]/ro
 
 // FASE 5
 console.log("\n--- FASE 5: ADMIN E CONTEST ---");
-test("middleware.ts existe", () => assert(existsSync("middleware.ts"), "Faltando"));
+test("proxy.ts existe", () => assert(existsSync("proxy.ts"), "Faltando"));
 test("admin-dashboard.tsx existe", () => assert(existsSync("components/admin-dashboard.tsx"), "Faltando"));
 test("API admin/stats existe", () => assert(existsSync("app/api/admin/stats/route.ts"), "Faltando"));
 test("API admin/orders existe", () => assert(existsSync("app/api/admin/orders/route.ts"), "Faltando"));
@@ -86,7 +86,7 @@ test("json-loader-runtime.ts existe", () => assert(existsSync("lib/json-loader-r
 // FASE 6
 console.log("\n--- FASE 6: DEPLOY E DOCS ---");
 test("deploy-hostinger.sh existe", () => assert(existsSync("scripts/deploy-hostinger.sh"), "Faltando"));
-test("ecosystem.config.js existe", () => assert(existsSync("ecosystem.config.js"), "Faltando"));
+test("ecosystem.config.cjs existe", () => assert(existsSync("ecosystem.config.cjs"), "Faltando"));
 test("nginx-config.conf existe", () => assert(existsSync("scripts/nginx-config.conf"), "Faltando"));
 test(".env.example existe", () => assert(existsSync(".env.example"), "Faltando"));
 test("README.md existe", () => assert(existsSync("README.md"), "Faltando"));
@@ -98,7 +98,7 @@ console.log("\n--- PACKAGE.JSON ---");
 await testAsync("package.json tem scripts essenciais", async () => {
   const content = await readFile("package.json", "utf-8");
   const pkg = JSON.parse(content);
-  
+
   const required = ["dev", "build", "start", "db:init", "db:seed", "test:all"];
   for (const script of required) {
     assert(pkg.scripts[script], `Script ${script} faltando`);
@@ -113,5 +113,5 @@ if (failed > 0) {
   process.exit(1);
 } else {
   console.log("[SUCESSO] Todos os testes passaram!");
-  console.log("[FINAL] PROJETO COMPLETO - PRONTO PARA PRODUCAO!");
+  console.log("[FINAL] Validacoes estruturais concluidas com sucesso.");
 }
