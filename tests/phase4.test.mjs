@@ -253,7 +253,6 @@ describe(
           const value of [
             "createPaymentPreference",
             "getPaymentStatus",
-            "verifyWebhookSignature",
           ]
         ) {
           assert.ok(
@@ -355,9 +354,9 @@ describe(
 
 
     test(
-      "Webhook processa pagamentos",
+      "Webhook Mercado Pago autentica, localiza e delega a transicao financeira",
       () => {
-        const content =
+        const routeContent =
           readFileSync(
             join(
               process.cwd(),
@@ -371,21 +370,121 @@ describe(
           );
 
 
+        const handlerContent =
+          readFileSync(
+            join(
+              process.cwd(),
+              "lib",
+              "mercadopago-webhook-handler.ts"
+            ),
+            "utf8"
+          );
+
+
+        assert.match(
+          routeContent,
+          /createMercadoPagoWebhookPostHandler/,
+          "Rota real deve delegar para o handler seguro"
+        );
+
+
+        const content =
+          `${routeContent}\n${handlerContent}`;
+
+
         assert.match(
           content,
-          /verifyWebhookSignature/
+          /validateMercadoPagoWebhookSignature/,
+          "Webhook deve validar a assinatura oficial do Mercado Pago"
         );
 
 
         assert.match(
           content,
-          /statusMap/
+          /parseMercadoPagoWebhookNotification/,
+          "Webhook deve validar o payload autenticado"
         );
 
 
         assert.match(
           content,
-          /approved/
+          /getPaymentStatus/,
+          "Webhook deve consultar o pagamento real no Mercado Pago"
+        );
+
+
+        assert.match(
+          content,
+          /locateMercadoPagoOrder/,
+          "Webhook deve localizar exatamente o pedido pela external_reference"
+        );
+
+
+        assert.match(
+          content,
+          /applyMercadoPagoPaymentState/,
+          "Webhook deve delegar a transição financeira à máquina de estados"
+        );
+
+
+        assert.doesNotMatch(
+          content,
+          /verifyWebhookSignature/,
+          "Endpoint não deve utilizar o validador HMAC legado"
+        );
+
+
+        assert.doesNotMatch(
+          content,
+          /statusMap/,
+          "Endpoint não deve utilizar o mapa legado de estados"
+        );
+
+
+        assert.doesNotMatch(
+          content,
+          /pendingOrders/,
+          "Endpoint não pode buscar pedidos pending genericamente"
+        );
+
+
+        assert.doesNotMatch(
+          content,
+          /latestOrder/,
+          "Endpoint não pode atualizar o último pedido pending"
+        );
+
+
+        assert.doesNotMatch(
+          content,
+          /simula aprova/i,
+          "Falha do provedor nunca pode simular aprovação"
+        );
+
+
+        assert.doesNotMatch(
+          content,
+          /authorized:\s*["']approved["']/,
+          "Status authorized não pode ser tratado como approved"
+        );
+
+
+        /**
+         * A rota HTTP não implementa a escrita
+         * financeira diretamente.
+         *
+         * Essa responsabilidade pertence a
+         * payment-order-state.ts.
+         */
+        assert.doesNotMatch(
+          content,
+          /\.update\s*\(\s*orders\s*\)/
+        );
+
+
+        assert.doesNotMatch(
+          content,
+          /mpPaymentId\s*:/
         );
       }
     );

@@ -679,5 +679,50 @@ describe(
         );
       }
     );
+
+
+    test(
+      "consulta de pagamento não pode possuir fallbacks financeiros permissivos",
+      () => {
+        const source =
+          readFileSync(
+            join(
+              process.cwd(),
+              "lib/mercadopago.ts"
+            ),
+            "utf8"
+          );
+
+
+        assert.match(
+          source,
+          /parseMercadoPagoPaymentResponse/
+        );
+
+
+        assert.match(
+          source,
+          /currency_id/
+        );
+
+
+        assert.doesNotMatch(
+          source,
+          /response\.status\s*\|\|\s*["']unknown["']/
+        );
+
+
+        assert.doesNotMatch(
+          source,
+          /response\.external_reference\s*\|\|\s*["']["']/
+        );
+
+
+        assert.doesNotMatch(
+          source,
+          /response\.transaction_amount\s*\|\|\s*0/
+        );
+      }
+    );
   }
 );

@@ -524,7 +524,7 @@ describe(
           assert.equal(
             result.mpItems[0]
               .unit_price,
-            49.9
+            39.9
           );
         } finally {
           context.cleanup();

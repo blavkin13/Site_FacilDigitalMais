@@ -2,6 +2,7 @@ export interface PaymentEnvironment {
   NODE_ENV?: string;
   APP_BASE_URL?: string;
   MERCADO_PAGO_ACCESS_TOKEN?: string;
+  MERCADO_PAGO_WEBHOOK_SECRET?: string;
 }
 
 
@@ -35,6 +36,9 @@ const blockedTokenValues =
       "SEU_ACCESS_TOKEN",
       "SEU_TOKEN",
       "TOKEN_AQUI",
+      "YOUR_WEBHOOK_SECRET",
+      "SEU_WEBHOOK_SECRET",
+      "MERCADO_PAGO_WEBHOOK_SECRET",
     ]
   );
 
@@ -128,6 +132,39 @@ export function getMercadoPagoAccessToken(
 
 
   return token;
+}
+
+
+export function getMercadoPagoWebhookSecret(
+  environment:
+    PaymentEnvironment =
+      process.env
+): string {
+  const secret =
+    environment
+      .MERCADO_PAGO_WEBHOOK_SECRET
+      ?.trim();
+
+
+  if (!secret) {
+    throw new PaymentConfigurationError(
+      "Webhook do Mercado Pago não está configurado."
+    );
+  }
+
+
+  if (
+    looksLikePlaceholder(
+      secret
+    )
+  ) {
+    throw new PaymentConfigurationError(
+      "Segredo do webhook Mercado Pago é inválido."
+    );
+  }
+
+
+  return secret;
 }
 
 

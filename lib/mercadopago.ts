@@ -69,10 +69,173 @@ export interface CartItemForMP {
 
 export interface CheckoutData {
   items: CartItemForMP[];
-  userEmail: string;
-  userName: string;
-  orderReference: string;
-  backUrl: string;
+
+  expectedTotal:
+    number;
+
+  userEmail:
+    string;
+
+  userName:
+    string;
+
+  orderReference:
+    string;
+
+  backUrl:
+    string;
+}
+
+function paymentValueToCents(
+  value: number,
+  label:
+    string
+): number {
+  if (
+    !Number.isFinite(
+      value
+    )
+  ) {
+    throw new MercadoPagoProviderError(
+      `${label} inválido.`
+    );
+  }
+
+
+  const cents =
+    Math.round(
+      (
+        value +
+        Number.EPSILON
+      ) *
+        100
+    );
+
+
+  if (
+    !Number.isSafeInteger(
+      cents
+    ) ||
+    cents <= 0
+  ) {
+    throw new MercadoPagoProviderError(
+      `${label} inválido.`
+    );
+  }
+
+
+  return cents;
+}
+
+
+export function calculateMercadoPagoItemsTotalCents(
+  items:
+    CartItemForMP[]
+): number {
+  if (
+    !Array.isArray(
+      items
+    ) ||
+    items.length ===
+      0
+  ) {
+    throw new MercadoPagoProviderError(
+      "Preferência sem itens."
+    );
+  }
+
+
+  let totalCents =
+    0;
+
+
+  for (
+    const item
+    of items
+  ) {
+    if (
+      !Number.isInteger(
+        item.quantity
+      ) ||
+      item.quantity <=
+        0
+    ) {
+      throw new MercadoPagoProviderError(
+        "Quantidade inválida na preferência."
+      );
+    }
+
+
+    const unitPriceCents =
+      paymentValueToCents(
+        item.unit_price,
+        "Preço da preferência"
+      );
+
+
+    const itemTotalCents =
+      unitPriceCents *
+      item.quantity;
+
+
+    if (
+      !Number.isSafeInteger(
+        itemTotalCents
+      )
+    ) {
+      throw new MercadoPagoProviderError(
+        "Valor da preferência excede o limite suportado."
+      );
+    }
+
+
+    totalCents +=
+      itemTotalCents;
+
+
+    if (
+      !Number.isSafeInteger(
+        totalCents
+      )
+    ) {
+      throw new MercadoPagoProviderError(
+        "Valor total da preferência excede o limite suportado."
+      );
+    }
+  }
+
+
+  return totalCents;
+}
+
+
+export function assertPaymentPreferenceAmount(
+  items:
+    CartItemForMP[],
+  expectedTotal:
+    number
+): void {
+  const expectedTotalCents =
+    paymentValueToCents(
+      expectedTotal,
+      "Total esperado"
+    );
+
+
+  const itemsTotalCents =
+    calculateMercadoPagoItemsTotalCents(
+      items
+    );
+
+
+  if (
+    itemsTotalCents !==
+    expectedTotalCents
+  ) {
+    throw new MercadoPagoProviderError(
+      "Valor da preferência diverge do total do pedido."
+    );
+  }
 }
 
 export interface PaymentPreferenceResult {
@@ -187,6 +350,19 @@ export async function createPaymentPreference(data: CheckoutData): Promise<{
   preference_id: string;
 }> {
   try {
+    /**
+     * Segurança financeira:
+     *
+     * nenhuma preferência é enviada ao provedor
+     * quando a soma dos itens diverge de
+     * orders.total.
+     */
+    assertPaymentPreferenceAmount(
+      data.items,
+      data.expectedTotal
+    );
+
+
     const preference =
       createPreferenceClient();
 
@@ -251,13 +427,290 @@ export async function createPaymentPreference(data: CheckoutData): Promise<{
   }
 }
 
+export const MERCADO_PAGO_PAYMENT_STATUSES =
+  [
+    "pending",
+    "approved",
+    "authorized",
+    "in_process",
+    "in_mediation",
+    "rejected",
+    "cancelled",
+    "refunded",
+    "charged_back",
+  ] as const;
+
+
+export type MercadoPagoPaymentStatusValue =
+  (
+    typeof MERCADO_PAGO_PAYMENT_STATUSES
+  )[number];
+
+
+export interface MercadoPagoPaymentStatus {
+  id:
+    string;
+
+  status:
+    MercadoPagoPaymentStatusValue;
+
+  status_detail:
+    string;
+
+  external_reference:
+    string;
+
+  transaction_amount:
+    number;
+
+  currency_id:
+    string;
+}
+
+
+function normalizePaymentIdentifier(
+  value:
+    unknown
+): string | null {
+  if (
+    typeof value !==
+      "string" &&
+    typeof value !==
+      "number"
+  ) {
+    return null;
+  }
+
+
+  const normalized =
+    String(
+      value
+    ).trim();
+
+
+  return normalized
+    ? normalized
+    : null;
+}
+
+
+function isMercadoPagoPaymentStatus(
+  value:
+    string
+): value is
+  MercadoPagoPaymentStatusValue {
+  return (
+    MERCADO_PAGO_PAYMENT_STATUSES as
+      readonly string[]
+  ).includes(
+    value
+  );
+}
+
+
+export function parseMercadoPagoPaymentResponse(
+  response:
+    unknown,
+  requestedPaymentId:
+    string
+): MercadoPagoPaymentStatus {
+  const normalizedRequestedId =
+    requestedPaymentId.trim();
+
+
+  if (
+    !normalizedRequestedId
+  ) {
+    throw new MercadoPagoProviderError(
+      "payment_id solicitado é inválido."
+    );
+  }
+
+
+  if (
+    !response ||
+    typeof response !==
+      "object" ||
+    Array.isArray(
+      response
+    )
+  ) {
+    throw new MercadoPagoProviderError(
+      "Resposta de pagamento inválida."
+    );
+  }
+
+
+  const payment =
+    response as Record<
+      string,
+      unknown
+    >;
+
+
+  const paymentId =
+    normalizePaymentIdentifier(
+      payment.id
+    );
+
+
+  if (!paymentId) {
+    throw new MercadoPagoProviderError(
+      "Resposta de pagamento sem id."
+    );
+  }
+
+
+  /**
+   * A API consultada precisa devolver exatamente
+   * o recurso autenticado pelo webhook.
+   */
+  if (
+    paymentId !==
+    normalizedRequestedId
+  ) {
+    throw new MercadoPagoProviderError(
+      "payment_id retornado diverge do solicitado."
+    );
+  }
+
+
+  if (
+    typeof payment.status !==
+    "string"
+  ) {
+    throw new MercadoPagoProviderError(
+      "Resposta de pagamento sem status."
+    );
+  }
+
+
+  const status =
+    payment.status.trim();
+
+
+  if (
+    !status ||
+    !isMercadoPagoPaymentStatus(
+      status
+    )
+  ) {
+    throw new MercadoPagoProviderError(
+      "Status de pagamento inválido."
+    );
+  }
+
+
+  if (
+    typeof payment.external_reference !==
+      "string"
+  ) {
+    throw new MercadoPagoProviderError(
+      "Pagamento sem external_reference."
+    );
+  }
+
+
+  const externalReference =
+    payment
+      .external_reference
+      .trim();
+
+
+  if (
+    !externalReference
+  ) {
+    throw new MercadoPagoProviderError(
+      "Pagamento sem external_reference."
+    );
+  }
+
+
+  if (
+    typeof payment.transaction_amount !==
+      "number" ||
+    !Number.isFinite(
+      payment.transaction_amount
+    ) ||
+    payment.transaction_amount <=
+      0
+  ) {
+    throw new MercadoPagoProviderError(
+      "Pagamento com transaction_amount inválido."
+    );
+  }
+
+
+  if (
+    typeof payment.currency_id !==
+      "string"
+  ) {
+    throw new MercadoPagoProviderError(
+      "Pagamento sem currency_id."
+    );
+  }
+
+
+  const currencyId =
+    payment.currency_id
+      .trim()
+      .toUpperCase();
+
+
+  if (!currencyId) {
+    throw new MercadoPagoProviderError(
+      "Pagamento sem currency_id."
+    );
+  }
+
+
+  const statusDetail =
+    typeof payment.status_detail ===
+      "string"
+      ? payment.status_detail.trim()
+      : "";
+
+
+  return {
+    id:
+      paymentId,
+
+    status,
+
+    status_detail:
+      statusDetail,
+
+    external_reference:
+      externalReference,
+
+    transaction_amount:
+      payment.transaction_amount,
+
+    currency_id:
+      currencyId,
+  };
+}
+
 // Consultar status de um pagamento
-export async function getPaymentStatus(paymentId: string): Promise<{
-  status: string;
-  status_detail: string;
-  external_reference: string;
-  transaction_amount: number;
-}> {
+export async function getPaymentStatus(
+  paymentId:
+    string
+): Promise<
+  MercadoPagoPaymentStatus
+> {
+  const normalizedPaymentId =
+    paymentId.trim();
+
+
+  if (
+    !normalizedPaymentId
+  ) {
+    throw new MercadoPagoProviderError(
+      "payment_id solicitado é inválido."
+    );
+  }
+
+
   try {
     const payment =
       createPaymentClient();
@@ -267,20 +720,27 @@ export async function getPaymentStatus(paymentId: string): Promise<{
       await payment.get(
         {
           id:
-            paymentId,
+            normalizedPaymentId,
         }
       );
 
-    return {
-      status: response.status || "unknown",
-      status_detail: response.status_detail || "",
-      external_reference: response.external_reference || "",
-      transaction_amount: response.transaction_amount || 0,
-    };
+
+    return parseMercadoPagoPaymentResponse(
+      response,
+      normalizedPaymentId
+    );
   } catch (error) {
     if (
       error instanceof
       PaymentConfigurationError
+    ) {
+      throw error;
+    }
+
+
+    if (
+      error instanceof
+      MercadoPagoProviderError
     ) {
       throw error;
     }
@@ -295,31 +755,5 @@ export async function getPaymentStatus(paymentId: string): Promise<{
     throw new MercadoPagoProviderError(
       "Falha ao verificar pagamento."
     );
-  }
-}
-
-// Validar assinatura de webhook (HMAC SHA-256)
-export async function verifyWebhookSignature(
-  payload: string,
-  signature: string,
-  secret: string
-): Promise<boolean> {
-  const { createHmac, timingSafeEqual } = await import("crypto");
-
-  try {
-    const hmac = createHmac("sha256", secret);
-    hmac.update(payload);
-    const expected = hmac.digest("hex");
-
-    const expectedBuffer = Buffer.from(expected, "hex");
-    const receivedBuffer = Buffer.from(signature.split(",")[0]?.replace("sha256=", "") || "", "hex");
-
-    if (expectedBuffer.length !== receivedBuffer.length) {
-      return false;
-    }
-
-    return timingSafeEqual(expectedBuffer, receivedBuffer);
-  } catch {
-    return false;
   }
 }

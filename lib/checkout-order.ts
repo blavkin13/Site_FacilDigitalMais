@@ -120,6 +120,325 @@ function roundCurrency(
 }
 
 
+function currencyToCents(
+  value: number,
+  label:
+    string
+): number {
+  if (
+    !Number.isFinite(
+      value
+    )
+  ) {
+    throw new CheckoutValidationError(
+      `${label} inválido.`
+    );
+  }
+
+
+  const cents =
+    Math.round(
+      (
+        value +
+        Number.EPSILON
+      ) *
+        100
+    );
+
+
+  if (
+    !Number.isSafeInteger(
+      cents
+    ) ||
+    cents <= 0
+  ) {
+    throw new CheckoutValidationError(
+      `${label} inválido.`
+    );
+  }
+
+
+  return cents;
+}
+
+
+function centsToCurrency(
+  cents: number
+): number {
+  return cents / 100;
+}
+
+
+function buildMercadoPagoItems(
+  preparedItems:
+    PreparedOrderItem[],
+  discountCents:
+    number
+): CartItemForMP[] {
+  const pricesInCents =
+    preparedItems.map(
+      (
+        item
+      ) =>
+        currencyToCents(
+          item.unitPrice,
+          "Preço do produto"
+        )
+    );
+
+
+  const subtotalCents =
+    pricesInCents.reduce(
+      (
+        total,
+        cents
+      ) =>
+        total +
+        cents,
+      0
+    );
+
+
+  if (
+    !Number.isSafeInteger(
+      discountCents
+    ) ||
+    discountCents < 0
+  ) {
+    throw new CheckoutValidationError(
+      "Desconto inválido."
+    );
+  }
+
+
+  /**
+   * Checkout Pro precisa receber itens com valor
+   * positivo.
+   *
+   * Como cada item do nosso carrinho digital possui
+   * quantity = 1, precisamos preservar pelo menos
+   * R$ 0,01 por item.
+   */
+  const maximumDiscount =
+    subtotalCents -
+    preparedItems.length;
+
+
+  if (
+    discountCents >
+    maximumDiscount
+  ) {
+    throw new CheckoutValidationError(
+      "Cupom não pode ser aplicado a este carrinho."
+    );
+  }
+
+
+  if (
+    discountCents ===
+    0
+  ) {
+    return preparedItems.map(
+      (
+        item,
+        index
+      ) => ({
+        id:
+          item.slug,
+
+        title:
+          item.title,
+
+        description:
+          item.description,
+
+        quantity:
+          1,
+
+        unit_price:
+          centsToCurrency(
+            pricesInCents[
+              index
+            ]
+          ),
+      })
+    );
+  }
+
+
+  /**
+   * O desconto é distribuído proporcionalmente
+   * pelos itens.
+   *
+   * Primeiro usamos a parcela inteira de centavos.
+   * Os centavos restantes são distribuídos em ordem
+   * estável do carrinho.
+   *
+   * Dessa forma:
+   *
+   * Σ itens Mercado Pago === orders.total
+   *
+   * exatamente em centavos.
+   */
+  const allocatedDiscounts =
+    pricesInCents.map(
+      (
+        itemCents
+      ) =>
+        Math.floor(
+          (
+            discountCents *
+            itemCents
+          ) /
+            subtotalCents
+        )
+    );
+
+
+  let allocated =
+    allocatedDiscounts.reduce(
+      (
+        total,
+        cents
+      ) =>
+        total +
+        cents,
+      0
+    );
+
+
+  let remaining =
+    discountCents -
+    allocated;
+
+
+  let index =
+    0;
+
+
+  while (
+    remaining >
+    0
+  ) {
+    const maximumForItem =
+      pricesInCents[
+        index
+      ] -
+      1;
+
+
+    if (
+      allocatedDiscounts[
+        index
+      ] <
+      maximumForItem
+    ) {
+      allocatedDiscounts[
+        index
+      ] +=
+        1;
+
+
+      allocated +=
+        1;
+
+
+      remaining -=
+        1;
+    }
+
+
+    index =
+      (
+        index +
+        1
+      ) %
+      preparedItems.length;
+  }
+
+
+  const mercadoPagoItems =
+    preparedItems.map(
+      (
+        item,
+        itemIndex
+      ) => {
+        const finalCents =
+          pricesInCents[
+            itemIndex
+          ] -
+          allocatedDiscounts[
+            itemIndex
+          ];
+
+
+        if (
+          finalCents <=
+          0
+        ) {
+          throw new CheckoutValidationError(
+            "Desconto resultou em preço inválido."
+          );
+        }
+
+
+        return {
+          id:
+            item.slug,
+
+          title:
+            item.title,
+
+          description:
+            item.description,
+
+          quantity:
+            1,
+
+          unit_price:
+            centsToCurrency(
+              finalCents
+            ),
+        };
+      }
+    );
+
+
+  const mercadoPagoTotalCents =
+    mercadoPagoItems.reduce(
+      (
+        total,
+        item
+      ) =>
+        total +
+        currencyToCents(
+          item.unit_price,
+          "Preço Mercado Pago"
+        ) *
+          item.quantity,
+      0
+    );
+
+
+  const expectedTotalCents =
+    subtotalCents -
+    discountCents;
+
+
+  if (
+    mercadoPagoTotalCents !==
+    expectedTotalCents
+  ) {
+    throw new Error(
+      "Falha interna ao distribuir desconto do checkout."
+    );
+  }
+
+
+  return mercadoPagoItems;
+}
+
+
 function normalizePaymentMethod(
   value: unknown
 ): CheckoutPaymentMethod {
@@ -386,7 +705,7 @@ export function createPendingCheckoutOrder(
     PreparedOrderItem[] =
       [];
 
-  let subtotal =
+  let subtotalCents =
     0;
 
   for (
@@ -437,26 +756,60 @@ export function createPendingCheckoutOrder(
       }
     );
 
-    subtotal =
-      roundCurrency(
-        subtotal +
-          unitPrice
+    subtotalCents +=
+      currencyToCents(
+        unitPrice,
+        "Preço do produto"
       );
   }
 
-  const discount =
+  const discountCents =
     coupon ===
     "APROVA10"
-      ? 10
+      ? 1000
       : 0;
 
+
+  /**
+   * O cupom APROVA10 representa exatamente
+   * R$ 10,00.
+   *
+   * Não reduzimos silenciosamente o desconto.
+   * Se o carrinho não puder representar esse valor
+   * mantendo todos os itens positivos, rejeitamos
+   * a aplicação.
+   */
+  if (
+    discountCents >
+    subtotalCents -
+      preparedItems.length
+  ) {
+    throw new CheckoutValidationError(
+      "Cupom não pode ser aplicado a este carrinho."
+    );
+  }
+
+
+  const totalCents =
+    subtotalCents -
+    discountCents;
+
+
+  const subtotal =
+    centsToCurrency(
+      subtotalCents
+    );
+
+
+  const discount =
+    centsToCurrency(
+      discountCents
+    );
+
+
   const total =
-    Math.max(
-      0,
-      roundCurrency(
-        subtotal -
-          discount
-      )
+    centsToCurrency(
+      totalCents
     );
 
   /**
@@ -553,28 +906,11 @@ export function createPendingCheckoutOrder(
       }
     );
 
-  const mpItems:
-    CartItemForMP[] =
-      preparedItems.map(
-        (
-          item
-        ) => ({
-          id:
-            item.slug,
-
-          title:
-            item.title,
-
-          description:
-            item.description,
-
-          quantity:
-            1,
-
-          unit_price:
-            item.unitPrice,
-        })
-      );
+  const mpItems =
+    buildMercadoPagoItems(
+      preparedItems,
+      discountCents
+    );
 
   return {
     order,

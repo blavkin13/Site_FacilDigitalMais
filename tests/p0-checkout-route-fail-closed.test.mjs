@@ -587,6 +587,29 @@ describe(
             "https://facildigitalmais.com"
           );
 
+          assert.equal(
+            providerInput.expectedTotal,
+            49.9
+          );
+
+
+          assert.equal(
+            providerInput.items.reduce(
+              (
+                total,
+                item
+              ) =>
+                total +
+                Math.round(
+                  item.unit_price *
+                    100
+                ) *
+                  item.quantity,
+              0
+            ),
+            4990
+          );
+
 
           assert.equal(
             providerInput

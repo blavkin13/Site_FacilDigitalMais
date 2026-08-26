@@ -236,6 +236,9 @@ export function createCheckoutPostHandler(
               items:
                 mpItems,
 
+              expectedTotal:
+                total,
+
               userEmail:
                 user.email,
 
