@@ -79,6 +79,7 @@
     "test:phase4-production": "npm run test:phase4n-production",
     "test:phase4-qa": "npm run test:phase4h-qa && npm run test:phase4-auth-hardening && npm run test:phase4-http-security && npm run test:phase4-api-privacy && npm run test:phase4-operations && npm run test:phase4-production",
     "test:p0-payment-schema": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/p0-payment-schema.test.mjs",
+    "test:p0-checkout-order": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/p0-checkout-order.test.mjs",
     "test:production-build": "rm -rf .next && next build",
     "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:phase3b-admin-ui test:phase3c test:phase3d test:phase3e test:phase4-backend test:phase4-admin-ui test:phase4-student-security test:phase4-qa test:p0-payment-schema test:production-build",
     "validate": "node scripts/validate-all.mjs"

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
 import { getDb } from "../../../../db/index";
-import { orders, orderItems, products } from "../../../../db/schema";
 import { validateSession } from "../../../../lib/auth";
 import { createPaymentPreference } from "../../../../lib/mercadopago";
+import {
+  attachPaymentPreference,
+  CheckoutValidationError,
+  createPendingCheckoutOrder,
+} from "../../../../lib/checkout-order";
 import { initDatabase } from "../../../../db/init";
 
 export async function POST(request: NextRequest) {
@@ -23,111 +26,170 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { items, paymentMethod, coupon } = body;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: "Carrinho vazio." }, { status: 400 });
-    }
+    const {
+      items,
+      paymentMethod,
+      coupon,
+    } = body;
 
-    // Buscar produtos do banco
-    const allProducts = await db.select().from(products).all();
-    const productsMap = new Map(allProducts.map((p) => [p.slug, p]));
-
-    // Montar itens para o Mercado Pago
-    const mpItems = [];
-    let subtotal = 0;
-    const validItems: Array<{ productId: number; slug: string; price: number; quantity: number }> = [];
-
-    for (const item of items) {
-      const product = productsMap.get(item.slug);
-      if (!product || !product.active) continue;
-
-      const price = paymentMethod === "pix" && product.pixPrice ? product.pixPrice : product.price;
-      const quantity = item.quantity || 1;
-
-      mpItems.push({
-        id: product.slug,
-        title: product.title,
-        description: product.description || "Apostila digital",
-        quantity,
-        unit_price: price,
-      });
-
-      subtotal += price * quantity;
-      validItems.push({ productId: product.id, slug: product.slug, price, quantity });
-    }
-
-    if (validItems.length === 0) {
-      return NextResponse.json({ error: "Nenhum produto válido." }, { status: 400 });
-    }
-
-    // Aplicar desconto
-    let discount = 0;
-    if (coupon === "APROVA10") discount = 10;
-    const total = Math.max(0, subtotal - discount);
-
-    // Gerar referência única do pedido
-    // Esta referência será usada como external_reference no Mercado Pago
-    const orderReference = `FD-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-
-    // Criar pedido no banco (status: pending)
-    const orderResult = await db
-      .insert(orders)
-      .values({
-        userId: user.id,
-        status: "pending",
-        paymentMethod,
-        subtotal,
-        discount,
-        total,
-        coupon: coupon || null,
-      })
-      .returning();
-
-    const order = orderResult[0]!;
-
-    // Criar itens do pedido
-    for (const item of validItems) {
-      await db.insert(orderItems).values({
-        orderId: order.id,
-        productId: item.productId,
-        quantity: item.quantity,
-        unitPrice: item.price,
-      });
-    }
-
-    // Criar preferência no Mercado Pago
-    // O orderReference será enviado como external_reference para correlacionar webhooks
-    const baseUrl = request.nextUrl.origin;
-
-    let checkoutUrl = "";
-    let preferenceId = "";
+    /**
+     * Cria pedido + itens atomicamente.
+     *
+     * A external_reference é gerada no servidor e
+     * persistida antes de qualquer contato com o
+     * Mercado Pago.
+     *
+     * Preço, quantidade, produto ativo e cupom são
+     * validados pela camada de domínio.
+     */
+    let pendingOrder;
 
     try {
-      const mpResult = await createPaymentPreference({
-        items: mpItems,
-        userEmail: user.email,
-        userName: user.name || user.email,
-        orderReference,
-        backUrl: baseUrl,
-      });
-      checkoutUrl = mpResult.init_point;
-      preferenceId = mpResult.preference_id;
-    } catch (mpError) {
-      console.error("Erro Mercado Pago (usando modo demo):", mpError);
-      // Em desenvolvimento sem token real, simula a URL de checkout
-      checkoutUrl = `${baseUrl}/checkout/success?demo=true&order=${order.id}`;
-      preferenceId = `DEMO-${order.id}`;
+      pendingOrder =
+        createPendingCheckoutOrder(
+          db,
+          {
+            userId:
+              user.id,
+
+            items,
+
+            paymentMethod,
+
+            coupon,
+          }
+        );
+    } catch (error) {
+      if (
+        error instanceof
+        CheckoutValidationError
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              error.message,
+          },
+          {
+            status:
+              error.status,
+          }
+        );
+      }
+
+      throw error;
     }
 
-    return NextResponse.json({
-      success: true,
-      orderId: order.id,
-      orderReference,
-      checkoutUrl,
-      preferenceId,
+    const {
+      order,
+      externalReference:
+        orderReference,
+      mpItems,
       total,
-    });
+    } = pendingOrder;
+
+    /**
+     * A origem ainda será endurecida para
+     * APP_BASE_URL na etapa específica de
+     * configuração de produção.
+     */
+    const baseUrl =
+      request.nextUrl.origin;
+
+    let checkoutUrl =
+      "";
+
+    let preferenceId =
+      "";
+
+    let realPreferenceId:
+      string | null =
+      null;
+
+    try {
+      const mpResult =
+        await createPaymentPreference(
+          {
+            items:
+              mpItems,
+
+            userEmail:
+              user.email,
+
+            userName:
+              user.name ||
+              user.email,
+
+            orderReference,
+
+            backUrl:
+              baseUrl,
+          }
+        );
+
+      checkoutUrl =
+        mpResult.init_point;
+
+      preferenceId =
+        mpResult.preference_id;
+
+      realPreferenceId =
+        mpResult.preference_id;
+    } catch (mpError) {
+      /**
+       * Comportamento legado temporariamente
+       * preservado nesta subfase.
+       *
+       * O fallback demo será removido quando
+       * tornarmos Mercado Pago fail-closed.
+       */
+      console.error(
+        "Erro Mercado Pago (usando modo demo):",
+        mpError
+      );
+
+      checkoutUrl =
+        `${baseUrl}/checkout/success?demo=true&order=${order.id}`;
+
+      preferenceId =
+        `DEMO-${order.id}`;
+    }
+
+    /**
+     * Somente preference_id realmente retornado pelo
+     * Mercado Pago é persistido.
+     *
+     * Identificadores DEMO não entram na coluna
+     * preference_id.
+     */
+    if (
+      realPreferenceId !==
+      null
+    ) {
+      attachPaymentPreference(
+        db,
+        order.id,
+        realPreferenceId
+      );
+    }
+
+    return NextResponse.json(
+      {
+        success:
+          true,
+
+        orderId:
+          order.id,
+
+        orderReference,
+
+        checkoutUrl,
+
+        preferenceId,
+
+        total,
+      }
+    );
   } catch (error) {
     console.error("Erro ao criar checkout:", error);
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });
