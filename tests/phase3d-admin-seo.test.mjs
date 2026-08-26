@@ -473,9 +473,10 @@ describe(
         );
 
 
-        assert.match(
+        assert.doesNotMatch(
           content,
-          /product\.pixPrice/
+          /product\.pixPrice/,
+          "Landing pública deve utilizar apenas product.price"
         );
       }
     );

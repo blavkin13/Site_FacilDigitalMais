@@ -18,7 +18,7 @@ export function CheckoutReal() {
   const [error, setError] = useState("");
 
   const subtotal = cart.reduce((s, i) => s + i.price, 0);
-  const discount = (method === "pix" ? subtotal * 0.05 : 0) + (applied ? 10 : 0);
+  const discount = applied ? 10 : 0;
   const total = Math.max(0, subtotal - discount);
 
   async function handleCheckout(e: React.FormEvent) {
@@ -183,7 +183,7 @@ export function CheckoutReal() {
 
             <div className="payment-tabs">
               {[
-                ["pix", "PIX", "5% OFF"],
+                ["pix", "PIX", "à vista"],
                 ["card", "Cartão", "até 12x"],
                 ["boleto", "Boleto", "à vista"],
               ].map((m) => (
@@ -203,8 +203,10 @@ export function CheckoutReal() {
               <div className="payment-demo">
                 <span>◇</span>
                 <div>
-                  <h3>PIX com desconto</h3>
-                  <p>O QR Code será gerado após confirmar. Validade de 30 minutos.</p>
+                  <h3>PIX</h3>
+                  <p>
+                    Você será redirecionado ao Mercado Pago para concluir o pagamento com segurança.
+                  </p>
                 </div>
               </div>
             )}

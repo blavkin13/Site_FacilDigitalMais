@@ -283,37 +283,24 @@ function normalizeRequestedSlugs(
 
 
 function getProductPrice(
-  paymentMethod:
-    CheckoutPaymentMethod,
   product: {
     price: number;
-    pixPrice:
-      number | null;
   }
 ): number {
-  const basePrice =
+  /**
+   * O preço comercial é único independentemente
+   * da forma de pagamento.
+   *
+   * PIX, cartão e boleto utilizam sempre
+   * products.price como fonte de verdade.
+   *
+   * pix_price permanece apenas como campo legado
+   * de compatibilidade e não participa do checkout.
+   */
+  const selectedPrice =
     Number(
       product.price
     );
-
-  const pixPrice =
-    product.pixPrice ===
-    null
-      ? null
-      : Number(
-          product.pixPrice
-        );
-
-  const selectedPrice =
-    paymentMethod ===
-      "pix" &&
-    pixPrice !== null &&
-    Number.isFinite(
-      pixPrice
-    ) &&
-    pixPrice > 0
-      ? pixPrice
-      : basePrice;
 
   if (
     !Number.isFinite(
@@ -368,8 +355,10 @@ export function createPendingCheckoutOrder(
    *
    * - existência do produto;
    * - publicação/atividade;
-   * - preço;
-   * - preço PIX.
+   * - preço.
+   *
+   * O preço é único independentemente da forma
+   * de pagamento.
    *
    * Nenhum preço recebido do navegador é utilizado.
    */
@@ -420,13 +409,9 @@ export function createPendingCheckoutOrder(
 
     const unitPrice =
       getProductPrice(
-        paymentMethod,
         {
           price:
             product.price,
-
-          pixPrice:
-            product.pixPrice,
         }
       );
 

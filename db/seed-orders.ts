@@ -42,7 +42,6 @@ export async function seedTestOrders() {
           questions: 820,
           oldPrice: 129.9,
           price: 79.9,
-          pixPrice: 75.91,
           updated: "Agosto de 2026",
           cover: "https://via.placeholder.com/400x500/0a2a52/ffffff?text=Saude",
           coverClass: "health",
@@ -60,7 +59,6 @@ export async function seedTestOrders() {
           questions: 960,
           oldPrice: 149.9,
           price: 89.9,
-          pixPrice: 85.41,
           updated: "Agosto de 2026",
           cover: "https://via.placeholder.com/400x500/0a2a52/ffffff?text=Contabilidade",
           coverClass: "accounting",
@@ -78,7 +76,6 @@ export async function seedTestOrders() {
           questions: 780,
           oldPrice: 129.9,
           price: 79.9,
-          pixPrice: 75.91,
           updated: "Agosto de 2026",
           cover: "https://via.placeholder.com/400x500/0a2a52/ffffff?text=Ambiental",
           coverClass: "environment",
@@ -109,7 +106,7 @@ export async function seedTestOrders() {
       paymentMethod: "pix",
       subtotal: testProducts[0].price,
       discount: 0,
-      total: testProducts[0].pixPrice || testProducts[0].price,
+      total: testProducts[0].price,
     })
     .returning();
 
@@ -118,7 +115,7 @@ export async function seedTestOrders() {
       orderId: order1Result[0].id,
       productId: testProducts[0].id,
       quantity: 1,
-      unitPrice: testProducts[0].pixPrice || testProducts[0].price,
+      unitPrice: testProducts[0].price,
     });
     console.log(`  ✅ Pedido 1 criado: ${testProducts[0].title}`);
   }

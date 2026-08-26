@@ -389,7 +389,6 @@ describe(
       () => {
         const expectedConsumers = [
           "components/student-dashboard.tsx",
-          "components/checkout-demo.tsx",
           "components/checkout-real.tsx",
           "components/site-header.tsx",
           "components/admin-dashboard.tsx",

@@ -252,7 +252,7 @@ describe(
     // ==========================================================
 
     test(
-      "API orders tem GET e POST",
+      "API orders deve ser somente leitura",
       async () => {
         const content =
           await readFile(
@@ -276,10 +276,10 @@ describe(
 
 
         assert.ok(
-          content.includes(
+          !content.includes(
             "export async function POST"
           ),
-          "Deve exportar POST"
+          "POST /api/orders não pode criar pedidos diretamente"
         );
 
 
@@ -287,20 +287,20 @@ describe(
           content.includes(
             "validateSession"
           ),
-          "Deve validar sessão"
+          "GET deve validar sessão"
         );
 
 
         assert.ok(
-          content.includes(
-            "APROVA10"
+          !content.includes(
+            'status: "approved"'
           ),
-          "Deve suportar cupom APROVA10"
+          "API de histórico não pode aprovar pedidos"
         );
 
 
         console.log(
-          "✅ API orders tem GET e POST com validações"
+          "✅ API orders é somente leitura e exige autenticação"
         );
       }
     );
@@ -691,7 +691,6 @@ describe(
                 0,
 
               total:
-                product.pixPrice ||
                 product.price,
             })
             .returning();
@@ -722,7 +721,6 @@ describe(
               1,
 
             unitPrice:
-              product.pixPrice ||
               product.price,
           });
 

@@ -194,6 +194,45 @@ describe(
   "P0 - criacao segura de pedidos",
   () => {
     test(
+      "API publica de pedidos nao deve permitir criacao ou aprovacao direta",
+      () => {
+        const routeSource =
+          readFileSync(
+            join(
+              process.cwd(),
+              "app/api/orders/route.ts"
+            ),
+            "utf8"
+          );
+
+        assert.match(
+          routeSource,
+          /export async function GET/
+        );
+
+        assert.doesNotMatch(
+          routeSource,
+          /export async function POST/
+        );
+
+        assert.doesNotMatch(
+          routeSource,
+          /status:\s*["']approved["']/
+        );
+
+        assert.doesNotMatch(
+          routeSource,
+          /mpPaymentId/
+        );
+
+        assert.doesNotMatch(
+          routeSource,
+          /\.insert\s*\(\s*orders\s*\)/
+        );
+      }
+    );
+
+    test(
       "rota de checkout deve delegar criacao atomica para a camada de dominio",
       () => {
         const routeSource =
@@ -344,7 +383,71 @@ describe(
 
 
     test(
-      "deve calcular preco PIX e normalizar cupom no servidor",
+      "PIX, cartao e boleto devem utilizar o mesmo preco base",
+      () => {
+        const context =
+          createContext();
+
+        try {
+          for (
+            const paymentMethod
+            of [
+              "pix",
+              "card",
+              "boleto",
+            ]
+          ) {
+            const result =
+              createPendingCheckoutOrder(
+                context.db,
+                {
+                  userId:
+                    1,
+
+                  paymentMethod,
+
+                  items: [
+                    {
+                      slug:
+                        "apostila-a",
+
+                      quantity:
+                        1,
+                    },
+                  ],
+                }
+              );
+
+            assert.equal(
+              result.subtotal,
+              49.9
+            );
+
+            assert.equal(
+              result.discount,
+              0
+            );
+
+            assert.equal(
+              result.total,
+              49.9
+            );
+
+            assert.equal(
+              result.mpItems[0]
+                .unit_price,
+              49.9
+            );
+          }
+        } finally {
+          context.cleanup();
+        }
+      }
+    );
+
+
+    test(
+      "cupom deve continuar sendo normalizado e aplicado sobre o preco unico",
       () => {
         const context =
           createContext();
@@ -382,7 +485,7 @@ describe(
 
           assert.equal(
             result.subtotal,
-            39.9
+            49.9
           );
 
           assert.equal(
@@ -392,13 +495,13 @@ describe(
 
           assert.equal(
             result.total,
-            29.9
+            39.9
           );
 
           assert.equal(
             result.mpItems[0]
               .unit_price,
-            39.9
+            49.9
           );
         } finally {
           context.cleanup();

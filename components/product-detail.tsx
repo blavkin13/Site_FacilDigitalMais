@@ -49,12 +49,6 @@ export function ProductDetail({
     );
 
 
-  const hasPixDiscount =
-    product.pixPrice > 0 &&
-    product.pixPrice <
-      product.price;
-
-
   const hasOldPrice =
     product.oldPrice > 0 &&
     product.oldPrice >
@@ -311,25 +305,6 @@ export function ProductDetail({
                   <small>
                     à vista ou conforme condições
                     disponíveis no checkout
-                  </small>
-                </div>
-
-
-                <div>
-                  <span>
-                    NO PIX
-                  </span>
-
-                  <b>
-                    {formatPrice(
-                      product.pixPrice
-                    )}
-                  </b>
-
-                  <small>
-                    {hasPixDiscount
-                      ? "preço especial no PIX"
-                      : "pagamento via PIX"}
                   </small>
                 </div>
               </div>
@@ -648,15 +623,6 @@ export function ProductDetail({
               )}
             </strong>
 
-            {hasPixDiscount && (
-              <small>
-                PIX:{" "}
-                {formatPrice(
-                  product.pixPrice
-                )}
-              </small>
-            )}
-
             <ul>
               <li>
                 ✓ Acesso após confirmação
@@ -855,15 +821,6 @@ export function ProductDetail({
               product.price
             )}
           </strong>
-
-          {hasPixDiscount && (
-            <span>
-              PIX{" "}
-              {formatPrice(
-                product.pixPrice
-              )}
-            </span>
-          )}
         </div>
 
 
