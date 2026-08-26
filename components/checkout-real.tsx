@@ -51,17 +51,64 @@ export function CheckoutReal() {
 
       const data = await res.json();
 
-      if (res.ok && data.success) {
-        // Redirecionar para o Mercado Pago
-        if (data.checkoutUrl.startsWith("http")) {
-          window.location.href = data.checkoutUrl;
-        } else {
-          // Modo demo: simula sucesso
-          router.push(data.checkoutUrl);
-        }
-      } else {
-        setError(data.error || "Erro ao processar pagamento.");
+      if (
+        !res.ok ||
+        !data.success
+      ) {
+        setError(
+          data.error ||
+            "Erro ao processar pagamento."
+        );
+
+        return;
       }
+
+
+      if (
+        typeof data.checkoutUrl !==
+        "string"
+      ) {
+        setError(
+          "Resposta de pagamento inválida."
+        );
+
+        return;
+      }
+
+
+      let checkoutUrl:
+        URL;
+
+
+      try {
+        checkoutUrl =
+          new URL(
+            data.checkoutUrl
+          );
+      } catch {
+        setError(
+          "Resposta de pagamento inválida."
+        );
+
+        return;
+      }
+
+
+      if (
+        checkoutUrl.protocol !==
+        "https:"
+      ) {
+        setError(
+          "Resposta de pagamento insegura."
+        );
+
+        return;
+      }
+
+
+      window.location.assign(
+        checkoutUrl.toString()
+      );
     } catch {
       setError("Erro de conexão. Tente novamente.");
     } finally {

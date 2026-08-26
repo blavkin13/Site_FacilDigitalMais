@@ -233,7 +233,7 @@ describe(
     );
 
     test(
-      "rota de checkout deve delegar criacao atomica para a camada de dominio",
+      "handler de checkout deve delegar criacao atomica para a camada de dominio",
       () => {
         const routeSource =
           readFileSync(
@@ -244,38 +244,61 @@ describe(
             "utf8"
           );
 
+
+        const handlerSource =
+          readFileSync(
+            join(
+              process.cwd(),
+              "lib/checkout-route-handler.ts"
+            ),
+            "utf8"
+          );
+
+
         assert.match(
           routeSource,
+          /createCheckoutPostHandler/
+        );
+
+
+        assert.match(
+          handlerSource,
           /createPendingCheckoutOrder/
         );
 
+
         assert.match(
-          routeSource,
+          handlerSource,
           /attachPaymentPreference/
         );
 
+
         assert.match(
-          routeSource,
-          /external_reference/
+          handlerSource,
+          /externalReference/
         );
 
+
         assert.doesNotMatch(
-          routeSource,
+          handlerSource,
           /\.insert\s*\(\s*orders\s*\)/
         );
 
+
         assert.doesNotMatch(
-          routeSource,
+          handlerSource,
           /\.insert\s*\(\s*orderItems\s*\)/
         );
 
+
         assert.doesNotMatch(
-          routeSource,
+          handlerSource,
           /Math\.random/
         );
 
+
         assert.doesNotMatch(
-          routeSource,
+          handlerSource,
           /Date\.now/
         );
       }

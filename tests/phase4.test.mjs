@@ -303,7 +303,7 @@ describe(
     test(
       "API checkout cria preferência e pedido",
       () => {
-        const content =
+        const routeContent =
           readFileSync(
             join(
               process.cwd(),
@@ -317,21 +317,38 @@ describe(
           );
 
 
+        const handlerContent =
+          readFileSync(
+            join(
+              process.cwd(),
+              "lib",
+              "checkout-route-handler.ts"
+            ),
+            "utf8"
+          );
+
+
         assert.match(
-          content,
+          routeContent,
+          /createCheckoutPostHandler/
+        );
+
+
+        assert.match(
+          handlerContent,
           /createPaymentPreference/
         );
 
 
         assert.match(
-          content,
+          handlerContent,
           /pending/
         );
 
 
         assert.match(
-          content,
-          /external_reference/
+          handlerContent,
+          /externalReference/
         );
       }
     );
