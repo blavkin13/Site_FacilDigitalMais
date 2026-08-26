@@ -520,6 +520,65 @@ const migrations: Migration[] = [
     `,
   },
 
+  {
+    id:
+      "0006_payment_order_identity",
+
+    description:
+      "Identidade externa e índices únicos para pedidos Mercado Pago",
+
+    sql: `
+      /*
+       * Pedidos históricos permanecem compatíveis:
+       *
+       * external_reference e preference_id são
+       * nullable na migration.
+       *
+       * A aplicação passará a exigir
+       * external_reference para todo novo pedido.
+       */
+      ALTER TABLE orders
+        ADD COLUMN external_reference TEXT;
+
+      ALTER TABLE orders
+        ADD COLUMN preference_id TEXT;
+
+      /*
+       * Uma referência externa identifica
+       * exatamente um pedido.
+       *
+       * NULL continua permitido para pedidos
+       * anteriores à migration.
+       */
+      CREATE UNIQUE INDEX
+        uq_orders_external_reference
+        ON orders(external_reference)
+        WHERE external_reference IS NOT NULL;
+
+      /*
+       * Uma preferência Mercado Pago não pode ser
+       * associada silenciosamente a pedidos
+       * diferentes.
+       */
+      CREATE UNIQUE INDEX
+        uq_orders_preference_id
+        ON orders(preference_id)
+        WHERE preference_id IS NOT NULL;
+
+      /*
+       * Um payment_id real deve identificar no
+       * máximo um pedido.
+       *
+       * Esta constraint funciona como segunda
+       * camada de idempotência do webhook.
+       */
+      CREATE UNIQUE INDEX
+        uq_orders_mp_payment_id
+        ON orders(mp_payment_id)
+        WHERE mp_payment_id IS NOT NULL;
+    `,
+  },
+
 ];
 
 /**

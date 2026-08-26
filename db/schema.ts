@@ -353,6 +353,40 @@ export const orders =
           "payment_method"
         ),
 
+      /**
+       * Referência externa gerada pela aplicação.
+       *
+       * Pedidos anteriores à migration 0006 podem
+       * permanecer sem valor.
+       *
+       * Todo novo pedido criado pelo checkout deverá
+       * possuir uma referência imprevisível e única.
+       */
+      externalReference:
+        text(
+          "external_reference"
+        ),
+
+      /**
+       * Identificador da preferência criada no
+       * Mercado Pago.
+       *
+       * Nullable para compatibilidade com pedidos
+       * históricos e fluxos que ainda não chegaram
+       * à criação da preferência.
+       */
+      preferenceId:
+        text(
+          "preference_id"
+        ),
+
+      /**
+       * Identificador do pagamento confirmado/
+       * consultado no Mercado Pago.
+       *
+       * Nullable enquanto o pedido ainda não possuir
+       * pagamento associado.
+       */
       mpPaymentId:
         text(
           "mp_payment_id"
@@ -397,7 +431,48 @@ export const orders =
           .default(
             sql`(datetime('now'))`
           ),
-    }
+    },
+    (
+      table
+    ) => [
+      /**
+       * SQLite permite múltiplos NULL em índices
+       * UNIQUE.
+       *
+       * Assim preservamos pedidos históricos sem
+       * referência, mas impedimos colisões entre
+       * novos pedidos.
+       */
+      uniqueIndex(
+        "uq_orders_external_reference"
+      )
+        .on(
+          table.externalReference
+        )
+        .where(
+          sql`${table.externalReference} IS NOT NULL`
+        ),
+
+      uniqueIndex(
+        "uq_orders_preference_id"
+      )
+        .on(
+          table.preferenceId
+        )
+        .where(
+          sql`${table.preferenceId} IS NOT NULL`
+        ),
+
+      uniqueIndex(
+        "uq_orders_mp_payment_id"
+      )
+        .on(
+          table.mpPaymentId
+        )
+        .where(
+          sql`${table.mpPaymentId} IS NOT NULL`
+        ),
+    ]
   );
 
 
