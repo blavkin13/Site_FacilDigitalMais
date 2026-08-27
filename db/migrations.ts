@@ -579,6 +579,129 @@ const migrations: Migration[] = [
     `,
   },
 
+  {
+    id:
+      "0007_payment_webhook_events",
+
+    description:
+      "Ledger durável e idempotência de eventos financeiros Mercado Pago",
+
+    sql: `
+      /*
+       * Ledger financeiro dos webhooks Mercado Pago.
+       *
+       * Esta tabela não concede entitlement.
+       * Ela registra de forma durável o resultado
+       * do processamento de cada fotografia
+       * financeira recebida do provedor.
+       *
+       * O fingerprint NÃO é apenas payment_id:
+       * um mesmo pagamento pode mudar de estado
+       * ao longo do tempo, por exemplo:
+       *
+       * approved
+       * -> charged_back/in_process
+       * -> charged_back/reimbursed
+       */
+      CREATE TABLE IF NOT EXISTS payment_webhook_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        event_fingerprint TEXT NOT NULL,
+
+        payment_id TEXT NOT NULL,
+
+        external_reference TEXT,
+
+        mp_status TEXT NOT NULL,
+
+        mp_status_detail TEXT NOT NULL DEFAULT '',
+
+        transaction_amount REAL NOT NULL,
+
+        /*
+         * Total já reembolsado observado na
+         * fotografia financeira.
+         *
+         * Zero significa nenhum refund informado.
+         *
+         * Também participa do fingerprint para que
+         * reembolsos parciais progressivos não sejam
+         * confundidos com reentregas idempotentes.
+         */
+        transaction_amount_refunded REAL
+          NOT NULL
+          DEFAULT 0
+          CHECK (
+            transaction_amount_refunded >= 0
+          ),
+
+        currency_id TEXT NOT NULL,
+
+        outcome TEXT NOT NULL,
+
+        error_code TEXT,
+
+        request_id TEXT NOT NULL,
+
+        occurrence_count INTEGER NOT NULL DEFAULT 1
+          CHECK (occurrence_count >= 1),
+
+        first_received_at TEXT NOT NULL
+          DEFAULT (datetime('now')),
+
+        last_received_at TEXT NOT NULL
+          DEFAULT (datetime('now')),
+
+        processed_at TEXT
+      );
+
+      /*
+       * Uma fotografia financeira idêntica deve
+       * possuir uma única entrada durável.
+       *
+       * Reentregas incrementam occurrence_count
+       * em vez de criar registros duplicados.
+       */
+      CREATE UNIQUE INDEX
+        uq_payment_webhook_events_fingerprint
+        ON payment_webhook_events(
+          event_fingerprint
+        );
+
+      /*
+       * Facilita auditoria cronológica de todas as
+       * mudanças observadas para um pagamento.
+       */
+      CREATE INDEX
+        idx_payment_webhook_events_payment
+        ON payment_webhook_events(
+          payment_id,
+          last_received_at
+        );
+
+      /*
+       * Permite localizar rapidamente todos os
+       * eventos associados a um pedido.
+       */
+      CREATE INDEX
+        idx_payment_webhook_events_external_reference
+        ON payment_webhook_events(
+          external_reference
+        );
+
+      /*
+       * Usado para filas administrativas e análise
+       * de eventos quarantined/processed/ignored.
+       */
+      CREATE INDEX
+        idx_payment_webhook_events_outcome
+        ON payment_webhook_events(
+          outcome,
+          last_received_at
+        );
+    `,
+  },
+
 ];
 
 /**

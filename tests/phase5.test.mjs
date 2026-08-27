@@ -306,43 +306,320 @@ describe("Fase 5 - Admin, Contest Pages e JSON Loader", () => {
     console.log("[OK] API admin/stats completa");
   });
 
-  test("API admin/orders permite atualizar status", async () => {
-    const content = await readFile(
-      join(
-        process.cwd(),
-        "app",
-        "api",
-        "admin",
-        "orders",
-        "route.ts"
-      ),
-      "utf-8"
-    );
+  test(
+    "API admin/orders permite consultar chargeback mas não criá-lo manualmente",
+    async () => {
+      const content =
+        await readFile(
+          join(
+            process.cwd(),
+            "app",
+            "api",
+            "admin",
+            "orders",
+            "route.ts"
+          ),
+          "utf-8"
+        );
 
-    assert.ok(
-      content.includes("export async function PATCH"),
-      "Deve ter PATCH"
-    );
 
-    assert.ok(
-      content.includes("status"),
-      "Deve permitir atualizar status"
-    );
+      assert.ok(
+        content.includes(
+          "export async function GET"
+        ),
+        "Deve ter GET"
+      );
 
-    assert.ok(
-      content.includes("refunded"),
-      "Deve suportar reembolso"
-    );
 
-    assert.ok(
-      content.includes('role !== "admin"'),
-      "API de pedidos deve validar role admin"
-    );
+      assert.ok(
+        content.includes(
+          "export async function PATCH"
+        ),
+        "Deve ter PATCH"
+      );
 
-    console.log(
-      "[OK] API admin/orders permite atualizar status"
-    );
-  });
+
+      const readableStatusesMatch =
+        content.match(
+          /const\s+readableStatuses\s*=\s*new\s+Set<string>\s*\(\s*\[([\s\S]*?)\]\s*\)/
+        );
+
+
+      assert.ok(
+        readableStatusesMatch,
+        "GET deve possuir allowlist explícita de status consultáveis"
+      );
+
+
+      const readableStatusesBlock =
+        readableStatusesMatch[1];
+
+
+      assert.match(
+        readableStatusesBlock,
+        /["']charged_back["']/,
+        "GET deve permitir consultar charged_back"
+      );
+
+
+      const readGuardIndex =
+        content.indexOf(
+          "!readableStatuses.has"
+        );
+
+
+      assert.ok(
+        readGuardIndex >=
+          0,
+        "GET deve rejeitar status fora da allowlist"
+      );
+
+
+      const readGuardBlock =
+        content.slice(
+          readGuardIndex,
+          readGuardIndex +
+            700
+        );
+
+
+      assert.match(
+        readGuardBlock,
+        /Status inválido\./,
+        "GET inválido deve informar Status inválido"
+      );
+
+
+      assert.match(
+        readGuardBlock,
+        /status:\s*400/,
+        "GET inválido deve retornar HTTP 400"
+      );
+
+
+      const writableStatusesMatch =
+        content.match(
+          /const\s+validStatuses\s*=\s*\[([\s\S]*?)\];/
+        );
+
+
+      assert.ok(
+        writableStatusesMatch,
+        "PATCH deve possuir allowlist explícita de status editáveis"
+      );
+
+
+      const writableStatusesBlock =
+        writableStatusesMatch[1];
+
+
+      assert.match(
+        writableStatusesBlock,
+        /["']refunded["']/,
+        "PATCH deve continuar permitindo refunded"
+      );
+
+
+      assert.doesNotMatch(
+        writableStatusesBlock,
+        /["']charged_back["']/,
+        "PATCH não pode permitir charged_back manual"
+      );
+
+
+      const writeGuardIndex =
+        content.indexOf(
+          "!validStatuses.includes"
+        );
+
+
+      assert.ok(
+        writeGuardIndex >=
+          0,
+        "PATCH deve validar status contra validStatuses"
+      );
+
+
+      const writeGuardBlock =
+        content.slice(
+          writeGuardIndex,
+          writeGuardIndex +
+            500
+        );
+
+
+      assert.match(
+        writeGuardBlock,
+        /Status inválido\./,
+        "PATCH deve rejeitar status financeiro não autorizado"
+      );
+
+
+      assert.match(
+        writeGuardBlock,
+        /status:\s*400/,
+        "PATCH inválido deve retornar HTTP 400"
+      );
+
+
+      assert.ok(
+        content.includes(
+          'role !== "admin"'
+        ),
+        "API de pedidos deve validar role admin"
+      );
+
+
+      console.log(
+        "[OK] admin/orders separa estados consultáveis de estados editáveis"
+      );
+    }
+  );
+
+
+  test(
+    "AdminDashboard exibe chargeback sem oferecer alteração manual",
+    async () => {
+      const content =
+        await readFile(
+          join(
+            process.cwd(),
+            "components",
+            "admin-dashboard.tsx"
+          ),
+          "utf-8"
+        );
+
+
+      assert.match(
+        content,
+        /charged_back:\s*["']Chargeback["']/,
+        "Dashboard deve possuir label Chargeback"
+      );
+
+
+      assert.match(
+        content,
+        /<option\s+value=["']charged_back["']>\s*Chargeback\s*<\/option>/,
+        "Filtro deve permitir visualizar pedidos em chargeback"
+      );
+
+
+      assert.match(
+        content,
+        /chargedBackOrders/,
+        "Dashboard deve consumir o contador de chargebacks"
+      );
+
+
+      const updateStatusIndex =
+        content.indexOf(
+          "void updateStatus("
+        );
+
+
+      assert.ok(
+        updateStatusIndex >=
+          0,
+        "Dashboard deve possuir controle administrativo de status"
+      );
+
+
+      const actionSelectStart =
+        content.lastIndexOf(
+          "<select",
+          updateStatusIndex
+        );
+
+
+      const actionSelectEnd =
+        content.indexOf(
+          "</select>",
+          updateStatusIndex
+        );
+
+
+      assert.ok(
+        actionSelectStart >=
+          0 &&
+          actionSelectEnd >
+            actionSelectStart,
+        "Select administrativo de ações deve ser localizável"
+      );
+
+
+      const actionSelect =
+        content.slice(
+          actionSelectStart,
+          actionSelectEnd +
+            "</select>".length
+        );
+
+
+      assert.match(
+        actionSelect,
+        /value=["']refunded["']/,
+        "Admin deve continuar podendo registrar reembolso manual permitido"
+      );
+
+
+      assert.doesNotMatch(
+        actionSelect,
+        /charged_back/,
+        "Admin não pode fabricar charged_back pelo seletor de ações"
+      );
+
+
+      console.log(
+        "[OK] AdminDashboard exibe chargeback somente como estado financeiro observado"
+      );
+    }
+  );
+
+
+  test(
+    "API admin/stats contabiliza chargebacks separadamente",
+    async () => {
+      const content =
+        await readFile(
+          join(
+            process.cwd(),
+            "app",
+            "api",
+            "admin",
+            "stats",
+            "route.ts"
+          ),
+          "utf-8"
+        );
+
+
+      assert.match(
+        content,
+        /chargedBackOrders/,
+        "Stats deve expor chargedBackOrders"
+      );
+
+
+      assert.match(
+        content,
+        /eq\s*\(\s*orders\.status\s*,\s*["']charged_back["']\s*\)/,
+        "Contador deve consultar especificamente orders.status charged_back"
+      );
+
+
+      assert.match(
+        content,
+        /chargedBackOrders:\s*chargedBackOrders\?\.count/,
+        "Resumo deve devolver o contador de chargebacks"
+      );
+
+
+      console.log(
+        "[OK] admin/stats contabiliza chargebacks separadamente"
+      );
+    }
+  );
 
   test(
     "API admin/products tem CRUD completo",

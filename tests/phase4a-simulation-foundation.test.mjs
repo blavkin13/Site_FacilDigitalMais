@@ -705,7 +705,7 @@ describe(
 
 
     test(
-      "pending, rejected e refunded não devem liberar o produto relacionado",
+      "pending, rejected, refunded e charged_back não devem liberar o produto relacionado",
       async () => {
         const schema =
           await import(
@@ -723,6 +723,7 @@ describe(
 
         const {
           resolveSimulationAccess,
+          getAccessibleSimulationIdsForUser,
         } =
           await import(
             "../lib/simulation-access.ts"
@@ -734,6 +735,7 @@ describe(
             "pending",
             "rejected",
             "refunded",
+            "charged_back",
           ]
         ) {
           await db
@@ -768,6 +770,21 @@ describe(
           assert.equal(
             decision.reason,
             "no_approved_purchase"
+          );
+
+
+          const accessibleIds =
+            await getAccessibleSimulationIdsForUser(
+              userId
+            );
+
+
+          assert.equal(
+            accessibleIds.includes(
+              simulationId
+            ),
+            false,
+            `Pedido ${status} não pode aparecer na lista de simulados liberados.`
           );
         }
       }

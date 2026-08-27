@@ -99,14 +99,36 @@ export function StudentDashboard() {
     }
   }
 
-  // Produtos únicos comprados (biblioteca)
-  const purchasedProducts = orders.flatMap((order) =>
-    order.items.map((item) => ({
-      ...item,
-      purchasedAt: order.createdAt,
-      orderId: order.id,
-    }))
-  );
+  // Biblioteca contém somente entitlement ativo.
+  //
+  // Pedidos refunded ou charged_back continuam
+  // visíveis no histórico, mas seus materiais não
+  // permanecem disponíveis na biblioteca.
+  const purchasedProducts =
+    orders
+      .filter(
+        (
+          order
+        ) =>
+          order.status ===
+          "approved"
+      )
+      .flatMap(
+        (
+          order
+        ) =>
+          order.items.map(
+            (
+              item
+            ) => ({
+              ...item,
+              purchasedAt:
+                order.createdAt,
+              orderId:
+                order.id,
+            })
+          )
+      );
 
   // Estatísticas
   const totalSpent = orders.reduce((sum, o) => sum + o.total, 0);
@@ -116,12 +138,19 @@ export function StudentDashboard() {
     pending: "Pendente",
     rejected: "Rejeitado",
     refunded: "Reembolsado",
+    charged_back: "Pagamento contestado",
   };
   const statusClasses: Record<string, string> = {
     approved: "status-approved",
     pending: "status-pending",
     rejected: "status-rejected",
     refunded: "status-refunded",
+
+    /**
+     * Reutilizamos por enquanto a aparência visual
+     * de estado financeiro revogado.
+     */
+    charged_back: "status-refunded",
   };
 
   if (loading) {

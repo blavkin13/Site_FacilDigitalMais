@@ -267,8 +267,9 @@ export async function GET(
      * um pedido aprovado contendo exatamente
      * o produto deste download.
      *
-     * Se houver reembolso/rejeição posterior,
-     * um link gerado anteriormente deixa de funcionar.
+     * Se houver reembolso, rejeição ou chargeback
+     * posterior, um link gerado anteriormente deixa
+     * de funcionar.
      */
     const approvedPurchase =
       downloadRecord.orderId

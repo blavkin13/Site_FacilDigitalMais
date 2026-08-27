@@ -804,7 +804,25 @@ describe(
 
         assert.match(
           source,
-          /paymentStatus\s*!==\s*["']approved["']/
+          /const\s+mayChangeFinancialState\s*=/
+        );
+
+
+        assert.match(
+          source,
+          /paymentStatus\s*===\s*["']approved["']/
+        );
+
+
+        assert.match(
+          source,
+          /\bhasRefund\b/
+        );
+
+
+        assert.match(
+          source,
+          /\bisChargeback\b/
         );
 
 

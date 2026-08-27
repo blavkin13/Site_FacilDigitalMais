@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
       revenueResult,
       pendingOrders,
       refundedOrders,
+      chargedBackOrders,
       totalProducts,
     ] = await Promise.all([
       // Total de usuários
@@ -70,6 +71,23 @@ export async function GET(request: NextRequest) {
         .select({ count: count() })
         .from(orders)
         .where(eq(orders.status, "refunded"))
+        .get(),
+
+      // Pedidos com chargeback
+      db
+        .select({
+          count:
+            count(),
+        })
+        .from(
+          orders
+        )
+        .where(
+          eq(
+            orders.status,
+            "charged_back"
+          )
+        )
         .get(),
 
       // Total de produtos
@@ -155,8 +173,17 @@ export async function GET(request: NextRequest) {
         totalOrders: totalOrders?.count || 0,
         totalRevenue: revenueResult?.total || 0,
         pendingOrders: pendingOrders?.count || 0,
-        refundedOrders: refundedOrders?.count || 0,
-        totalProducts: totalProducts?.count || 0,
+        refundedOrders:
+          refundedOrders?.count ||
+          0,
+
+        chargedBackOrders:
+          chargedBackOrders?.count ||
+          0,
+
+        totalProducts:
+          totalProducts?.count ||
+          0,
         averageTicket:
           totalOrders?.count && revenueResult?.total
             ? Number(revenueResult.total) / totalOrders.count

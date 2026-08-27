@@ -300,8 +300,8 @@ export async function POST(
      * O download exige especificamente um pedido
      * APROVADO contendo a apostila solicitada.
      *
-     * Um pedido pending/rejected/refunded não libera
-     * material.
+     * Um pedido pending/rejected/refunded/charged_back
+     * não libera material.
      */
     const purchase =
       await db

@@ -197,8 +197,14 @@ function approvedPayment(
     paymentStatus:
       "approved",
 
+    statusDetail:
+      "accredited",
+
     transactionAmount:
       39.9,
+
+    transactionAmountRefunded:
+      0,
 
     currencyId:
       "BRL",
@@ -844,10 +850,10 @@ describe(
 
 
     test(
-      "refunded e charged_back ainda nao podem alterar entitlement nesta fase",
+      "approved antigo não pode restaurar estados pós-venda revogados",
       () => {
         for (
-          const paymentStatus
+          const revokedStatus
           of [
             "refunded",
             "charged_back",
@@ -864,7 +870,7 @@ describe(
                   "FD-ORDER-A",
 
                 status:
-                  "approved",
+                  revokedStatus,
 
                 paymentId:
                   "PAYMENT-APPROVED",
@@ -875,11 +881,7 @@ describe(
             const result =
               applyMercadoPagoPaymentState(
                 context.db,
-                approvedPayment(
-                  {
-                    paymentStatus,
-                  }
-                )
+                approvedPayment()
               );
 
 
@@ -889,20 +891,31 @@ describe(
             );
 
 
-            const order =
-              context
-                .getOrders()[0];
+            const orders =
+              context.getOrders();
 
 
             assert.equal(
-              order.status,
-              "approved"
+              orders.length,
+              1
             );
 
 
             assert.equal(
-              order.mp_payment_id,
+              orders[0].status,
+              revokedStatus
+            );
+
+
+            assert.equal(
+              orders[0].mp_payment_id,
               "PAYMENT-APPROVED"
+            );
+
+
+            assert.equal(
+              orders[0].external_reference,
+              "FD-ORDER-A"
             );
           } finally {
             context.cleanup();

@@ -340,6 +340,7 @@ export const orders =
               "approved",
               "rejected",
               "refunded",
+              "charged_back",
             ],
           }
         )
@@ -472,6 +473,197 @@ export const orders =
         .where(
           sql`${table.mpPaymentId} IS NOT NULL`
         ),
+    ]
+  );
+
+
+/**
+ * Ledger durável de notificações financeiras
+ * recebidas do Mercado Pago.
+ *
+ * Não representa entitlement e não substitui
+ * orders.
+ *
+ * Seu objetivo é:
+ *
+ * - auditoria;
+ * - idempotência de entrega;
+ * - quarentena durável de conflitos;
+ * - histórico de mudanças do mesmo payment_id.
+ */
+export const paymentWebhookEvents =
+  sqliteTable(
+    "payment_webhook_events",
+    {
+      id:
+        integer(
+          "id"
+        ).primaryKey(
+          {
+            autoIncrement:
+              true,
+          }
+        ),
+
+      /**
+       * Identificador determinístico da fotografia
+       * financeira processada.
+       *
+       * Será calculado posteriormente a partir de
+       * payment_id + status + detail + referência +
+       * valor + moeda.
+       */
+      eventFingerprint:
+        text(
+          "event_fingerprint"
+        ).notNull(),
+
+      paymentId:
+        text(
+          "payment_id"
+        ).notNull(),
+
+      /**
+       * Pode ser NULL em registros históricos ou
+       * situações excepcionais de auditoria.
+       *
+       * Eventos financeiros normalmente terão a
+       * referência retornada pela API do MP.
+       */
+      externalReference:
+        text(
+          "external_reference"
+        ),
+
+      mpStatus:
+        text(
+          "mp_status"
+        ).notNull(),
+
+      mpStatusDetail:
+        text(
+          "mp_status_detail"
+        )
+          .notNull()
+          .default(
+            ""
+          ),
+
+      transactionAmount:
+        real(
+          "transaction_amount"
+        ).notNull(),
+
+      transactionAmountRefunded:
+        real(
+          "transaction_amount_refunded"
+        )
+          .notNull()
+          .default(
+            0
+          ),
+
+      currencyId:
+        text(
+          "currency_id"
+        ).notNull(),
+
+      /**
+       * Resultado interno do processamento.
+       *
+       * Exemplos futuros:
+       *
+       * processed
+       * ignored
+       * quarantined
+       */
+      outcome:
+        text(
+          "outcome"
+        ).notNull(),
+
+      /**
+       * Código estável de incidente quando outcome
+       * for quarantined.
+       *
+       * Não armazenamos mensagens internas como
+       * identificador de negócio.
+       */
+      errorCode:
+        text(
+          "error_code"
+        ),
+
+      /**
+       * x-request-id autenticado do Mercado Pago.
+       *
+       * Útil para suporte e correlação operacional.
+       */
+      requestId:
+        text(
+          "request_id"
+        ).notNull(),
+
+      occurrenceCount:
+        integer(
+          "occurrence_count"
+        )
+          .notNull()
+          .default(
+            1
+          ),
+
+      firstReceivedAt:
+        text(
+          "first_received_at"
+        )
+          .notNull()
+          .default(
+            sql`(datetime('now'))`
+          ),
+
+      lastReceivedAt:
+        text(
+          "last_received_at"
+        )
+          .notNull()
+          .default(
+            sql`(datetime('now'))`
+          ),
+
+      processedAt:
+        text(
+          "processed_at"
+        ),
+    },
+    (
+      table
+    ) => [
+      uniqueIndex(
+        "uq_payment_webhook_events_fingerprint"
+      ).on(
+        table.eventFingerprint
+      ),
+
+      index(
+        "idx_payment_webhook_events_payment"
+      ).on(
+        table.paymentId,
+        table.lastReceivedAt
+      ),
+
+      index(
+        "idx_payment_webhook_events_external_reference"
+      ).on(
+        table.externalReference
+      ),
+
+      index(
+        "idx_payment_webhook_events_outcome"
+      ).on(
+        table.outcome,
+        table.lastReceivedAt
+      ),
     ]
   );
 
@@ -1396,6 +1588,12 @@ export type Order =
 
 export type NewOrder =
   typeof orders.$inferInsert;
+
+export type PaymentWebhookEvent =
+  typeof paymentWebhookEvents.$inferSelect;
+
+export type NewPaymentWebhookEvent =
+  typeof paymentWebhookEvents.$inferInsert;
 
 export type OrderItem =
   typeof orderItems.$inferSelect;

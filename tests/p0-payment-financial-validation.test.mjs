@@ -76,6 +76,9 @@ describe(
             transaction_amount:
               39.9,
 
+            transaction_amount_refunded:
+              0,
+
             currency_id:
               "BRL",
           }
@@ -460,6 +463,157 @@ describe(
             PaymentFinancialValidationError
           );
         }
+      }
+    );
+
+
+    test(
+      "refund parcial válido deve ser normalizado e preservado",
+      () => {
+        const result =
+          parseMercadoPagoPaymentResponse(
+            {
+              id:
+                "123456789",
+
+              status:
+                "approved",
+
+              status_detail:
+                "accredited",
+
+              external_reference:
+                "FD-ORDER-123",
+
+              transaction_amount:
+                39.9,
+
+              transaction_amount_refunded:
+                10,
+
+              currency_id:
+                "BRL",
+            },
+            "123456789"
+          );
+
+
+        assert.equal(
+          result
+            .transaction_amount_refunded,
+          10
+        );
+      }
+    );
+
+
+    test(
+      "transaction_amount_refunded negativo deve ser rejeitado",
+      () => {
+        assert.throws(
+          () => {
+            parseMercadoPagoPaymentResponse(
+              {
+                id:
+                  "123456789",
+
+                status:
+                  "refunded",
+
+                status_detail:
+                  "refunded",
+
+                external_reference:
+                  "FD-ORDER-123",
+
+                transaction_amount:
+                  39.9,
+
+                transaction_amount_refunded:
+                  -1,
+
+                currency_id:
+                  "BRL",
+              },
+              "123456789"
+            );
+          },
+          /transaction_amount_refunded inválido/
+        );
+      }
+    );
+
+
+    test(
+      "transaction_amount_refunded acima do pagamento deve ser rejeitado",
+      () => {
+        assert.throws(
+          () => {
+            parseMercadoPagoPaymentResponse(
+              {
+                id:
+                  "123456789",
+
+                status:
+                  "refunded",
+
+                status_detail:
+                  "refunded",
+
+                external_reference:
+                  "FD-ORDER-123",
+
+                transaction_amount:
+                  39.9,
+
+                transaction_amount_refunded:
+                  39.91,
+
+                currency_id:
+                  "BRL",
+              },
+              "123456789"
+            );
+          },
+          /transaction_amount_refunded excede transaction_amount/
+        );
+      }
+    );
+
+
+    test(
+      "transaction_amount_refunded com precisão além de centavos deve ser rejeitado",
+      () => {
+        assert.throws(
+          () => {
+            parseMercadoPagoPaymentResponse(
+              {
+                id:
+                  "123456789",
+
+                status:
+                  "approved",
+
+                status_detail:
+                  "accredited",
+
+                external_reference:
+                  "FD-ORDER-123",
+
+                transaction_amount:
+                  39.9,
+
+                transaction_amount_refunded:
+                  10.001,
+
+                currency_id:
+                  "BRL",
+              },
+              "123456789"
+            );
+          },
+          /precisão monetária inválida/
+        );
       }
     );
   }

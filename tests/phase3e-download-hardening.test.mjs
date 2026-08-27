@@ -663,6 +663,166 @@ describe(
 
 
     test(
+      "pedido em chargeback deve revogar link e arquivo protegido",
+      async () => {
+        /**
+         * O teste anterior de refund destrói o token
+         * protegido compartilhado.
+         *
+         * Portanto este cenário precisa criar seu
+         * próprio recurso válido antes de simular o
+         * chargeback.
+         */
+        await db
+          .update(
+            schema.orders
+          )
+          .set({
+            status:
+              "approved",
+          })
+          .where(
+            eq(
+              schema.orders.id,
+              orderId
+            )
+          );
+
+
+        const chargebackProtectedResult =
+          await pdfProtection
+            .generateProtectedPdf(
+              originalPdfPath,
+              owner.cpf,
+              owner.id
+            );
+
+
+        await db
+          .insert(
+            schema.protectedDownloads
+          )
+          .values({
+            userId:
+              owner.id,
+
+            productId,
+
+            orderId,
+
+            downloadToken:
+              chargebackProtectedResult
+                .downloadToken,
+
+            expiresAt:
+              chargebackProtectedResult
+                .expiresAt
+                .toISOString(),
+          });
+
+
+        /**
+         * Primeiro provamos que o novo token existe
+         * antes da revogação financeira.
+         */
+        const beforeChargeback =
+          await pdfProtection
+            .getProtectedPdfByToken(
+              chargebackProtectedResult
+                .downloadToken
+            );
+
+
+        assert.ok(
+          beforeChargeback
+        );
+
+
+        await db
+          .update(
+            schema.orders
+          )
+          .set({
+            status:
+              "charged_back",
+          })
+          .where(
+            eq(
+              schema.orders.id,
+              orderId
+            )
+          );
+
+
+        const response =
+          await downloadRoute.GET(
+            downloadRequest(
+              chargebackProtectedResult
+                .downloadToken,
+
+              ownerSession
+                .session
+                .token
+            ),
+
+            downloadContext(
+              chargebackProtectedResult
+                .downloadToken
+            )
+          );
+
+
+        /**
+         * O token existia, mas perdeu entitlement
+         * porque o pedido deixou de estar approved.
+         */
+        assert.equal(
+          response.status,
+          403
+        );
+
+
+        const pdf =
+          await pdfProtection
+            .getProtectedPdfByToken(
+              chargebackProtectedResult
+                .downloadToken
+            );
+
+
+        assert.equal(
+          pdf,
+          null
+        );
+
+
+        const databaseRecord =
+          await db
+            .select()
+            .from(
+              schema.protectedDownloads
+            )
+            .where(
+              eq(
+                schema
+                  .protectedDownloads
+                  .downloadToken,
+                chargebackProtectedResult
+                  .downloadToken
+              )
+            )
+            .get();
+
+
+        assert.equal(
+          databaseRecord,
+          undefined
+        );
+      }
+    );
+
+
+    test(
       "API não deve afirmar que o PDF possui senha quando não possui",
       () => {
         const generateRoute =

@@ -58,7 +58,13 @@ export interface ApplyMercadoPagoPaymentStateInput {
   paymentStatus:
     MercadoPagoPaymentStatusValue;
 
+  statusDetail:
+    string;
+
   transactionAmount:
+    number;
+
+  transactionAmountRefunded:
     number;
 
   currencyId:
@@ -69,6 +75,11 @@ export interface ApplyMercadoPagoPaymentStateInput {
 export type PaymentOrderStateOutcome =
   | "approved"
   | "already_approved"
+  | "refunded"
+  | "already_refunded"
+  | "charged_back"
+  | "already_charged_back"
+  | "restored"
   | "ignored";
 
 
@@ -196,22 +207,89 @@ export function applyMercadoPagoPaymentState(
       }
 
 
+      const paymentStatus =
+        input.paymentStatus;
+
+
+      const statusDetail =
+        input.statusDetail
+          .trim()
+          .toLowerCase();
+
+
       /**
-       * Nesta fase somente "approved" possui
-       * autoridade para promover o pedido.
-       *
-       * authorized não equivale a approved.
-       *
-       * pending, in_process, in_mediation,
-       * rejected e cancelled também não modificam
-       * o estado do pedido.
-       *
-       * refunded e charged_back serão tratados na
-       * fase específica de revogação.
+       * Proteção adicional porque a máquina também
+       * é invocável isoladamente em testes e não
+       * deve depender apenas do parser HTTP.
        */
       if (
-        input.paymentStatus !==
-        "approved"
+        !Number.isFinite(
+          input.transactionAmountRefunded
+        ) ||
+        input.transactionAmountRefunded <
+          0
+      ) {
+        throw new PaymentOrderStateError(
+          "transaction_amount_refunded inválido."
+        );
+      }
+
+
+      let refundedAmountCents =
+        0;
+
+
+      if (
+        input.transactionAmountRefunded >
+        0
+      ) {
+        refundedAmountCents =
+          Math.round(
+            input.transactionAmountRefunded *
+              100
+          );
+
+
+        if (
+          Math.abs(
+            input.transactionAmountRefunded *
+              100 -
+              refundedAmountCents
+          ) >
+          1e-9
+        ) {
+          throw new PaymentOrderStateError(
+            "transaction_amount_refunded possui precisão inválida."
+          );
+        }
+      }
+
+
+      const hasRefund =
+        paymentStatus ===
+          "refunded" ||
+        refundedAmountCents >
+          0;
+
+
+      const isChargeback =
+        paymentStatus ===
+        "charged_back";
+
+
+      const mayChangeFinancialState =
+        paymentStatus ===
+          "approved" ||
+        hasRefund ||
+        isChargeback;
+
+
+      /**
+       * Estados sem autoridade financeira continuam
+       * sem alterar entitlement.
+       */
+      if (
+        !mayChangeFinancialState
       ) {
         return {
           orderId:
@@ -220,8 +298,7 @@ export function applyMercadoPagoPaymentState(
           orderStatus:
             order.status,
 
-          paymentStatus:
-            input.paymentStatus,
+          paymentStatus,
 
           outcome:
             "ignored",
@@ -230,11 +307,13 @@ export function applyMercadoPagoPaymentState(
 
 
       /**
-       * Antes de qualquer aprovação validamos
-       * moeda e valor exato em centavos.
+       * Qualquer evento que possa aprovar, revogar
+       * ou restaurar precisa continuar comprovando
+       * que se refere à mesma transação financeira:
        *
-       * PaymentFinancialValidationError sobe para
-       * o handler HTTP sem qualquer escrita.
+       * - BRL;
+       * - transaction_amount exato;
+       * - total do pedido exato em centavos.
        */
       validatePaymentFinancials(
         {
@@ -253,14 +332,421 @@ export function applyMercadoPagoPaymentState(
       );
 
 
+      const orderTotalCents =
+        Math.round(
+          order.total *
+            100
+        );
+
+
+      if (
+        refundedAmountCents >
+        orderTotalCents
+      ) {
+        throw new PaymentOrderStateError(
+          "Valor reembolsado excede o total do pedido."
+        );
+      }
+
+
+      /**
+       * Refund e chargeback possuem poder de
+       * REVOGAR entitlement.
+       *
+       * Por isso external_reference nunca basta.
+       * O payment_id precisa ser exatamente o
+       * payment_id canônico gravado na aprovação.
+       */
+      if (
+        hasRefund ||
+        isChargeback
+      ) {
+        if (
+          !order.mpPaymentId
+        ) {
+          throw new PaymentOrderStateError(
+            "Evento de revogação sem payment_id canônico."
+          );
+        }
+
+
+        if (
+          order.mpPaymentId !==
+          paymentId
+        ) {
+          throw new PaymentOrderStateError(
+            "Evento de revogação pertence a outro payment_id."
+          );
+        }
+      }
+
+
+      /**
+       * REFUND
+       *
+       * Nesta fase qualquer refund parcial também
+       * revoga o pedido inteiro.
+       *
+       * refunded é terminal:
+       * nenhum approved ou chargeback posterior
+       * restaurará automaticamente a compra.
+       */
+      if (
+        hasRefund
+      ) {
+        if (
+          order.status ===
+          "refunded"
+        ) {
+          return {
+            orderId:
+              order.id,
+
+            orderStatus:
+              "refunded",
+
+            paymentStatus,
+
+            outcome:
+              "already_refunded",
+          };
+        }
+
+
+        if (
+          order.status !==
+            "approved" &&
+          order.status !==
+            "charged_back"
+        ) {
+          throw new PaymentOrderStateError(
+            "Refund recebido para pedido sem compra canônica revogável."
+          );
+        }
+
+
+        const refundResult =
+          tx
+            .update(
+              orders
+            )
+            .set(
+              {
+                status:
+                  "refunded",
+
+                updatedAt:
+                  new Date()
+                    .toISOString(),
+              }
+            )
+            .where(
+              and(
+                eq(
+                  orders.id,
+                  order.id
+                ),
+
+                eq(
+                  orders.status,
+                  order.status
+                ),
+
+                eq(
+                  orders.mpPaymentId,
+                  paymentId
+                )
+              )
+            )
+            .run();
+
+
+        if (
+          refundResult.changes !==
+          1
+        ) {
+          throw new PaymentOrderStateError(
+            "Pedido mudou durante a revogação por refund."
+          );
+        }
+
+
+        return {
+          orderId:
+            order.id,
+
+          orderStatus:
+            "refunded",
+
+          paymentStatus,
+
+          outcome:
+            "refunded",
+        };
+      }
+
+
+      /**
+       * CHARGEBACK
+       *
+       * reimbursed:
+       * decisão favorável ao vendedor.
+       *
+       * É o ÚNICO status_detail de chargeback que
+       * pode restaurar um pedido suspenso.
+       *
+       * Qualquer outro detalhe — inclusive valores
+       * ainda desconhecidos — mantém o comportamento
+       * fail-closed e suspende o entitlement.
+       */
+      if (
+        isChargeback
+      ) {
+        /**
+         * Refund é terminal nesta fase.
+         */
+        if (
+          order.status ===
+          "refunded"
+        ) {
+          return {
+            orderId:
+              order.id,
+
+            orderStatus:
+              "refunded",
+
+            paymentStatus,
+
+            outcome:
+              "ignored",
+          };
+        }
+
+
+        if (
+          statusDetail ===
+          "reimbursed"
+        ) {
+          /**
+           * Se o evento intermediário de chargeback
+           * nunca chegou, um reimbursed recebido
+           * enquanto ainda estamos approved apenas
+           * confirma que o acesso deve permanecer.
+           */
+          if (
+            order.status ===
+            "approved"
+          ) {
+            return {
+              orderId:
+                order.id,
+
+              orderStatus:
+                "approved",
+
+              paymentStatus,
+
+              outcome:
+                "already_approved",
+            };
+          }
+
+
+          if (
+            order.status !==
+            "charged_back"
+          ) {
+            throw new PaymentOrderStateError(
+              "Resolução favorável recebida para pedido sem chargeback canônico."
+            );
+          }
+
+
+          const restoreResult =
+            tx
+              .update(
+                orders
+              )
+              .set(
+                {
+                  status:
+                    "approved",
+
+                  updatedAt:
+                    new Date()
+                      .toISOString(),
+                }
+              )
+              .where(
+                and(
+                  eq(
+                    orders.id,
+                    order.id
+                  ),
+
+                  eq(
+                    orders.status,
+                    "charged_back"
+                  ),
+
+                  eq(
+                    orders.mpPaymentId,
+                    paymentId
+                  )
+                )
+              )
+              .run();
+
+
+          if (
+            restoreResult.changes !==
+            1
+          ) {
+            throw new PaymentOrderStateError(
+              "Pedido mudou durante restauração de chargeback."
+            );
+          }
+
+
+          return {
+            orderId:
+              order.id,
+
+            orderStatus:
+              "approved",
+
+            paymentStatus,
+
+            outcome:
+              "restored",
+          };
+        }
+
+
+        if (
+          order.status ===
+          "charged_back"
+        ) {
+          return {
+            orderId:
+              order.id,
+
+            orderStatus:
+              "charged_back",
+
+            paymentStatus,
+
+            outcome:
+              "already_charged_back",
+          };
+        }
+
+
+        if (
+          order.status !==
+          "approved"
+        ) {
+          throw new PaymentOrderStateError(
+            "Chargeback recebido para pedido sem compra aprovada canônica."
+          );
+        }
+
+
+        const chargebackResult =
+          tx
+            .update(
+              orders
+            )
+            .set(
+              {
+                status:
+                  "charged_back",
+
+                updatedAt:
+                  new Date()
+                    .toISOString(),
+              }
+            )
+            .where(
+              and(
+                eq(
+                  orders.id,
+                  order.id
+                ),
+
+                eq(
+                  orders.status,
+                  "approved"
+                ),
+
+                eq(
+                  orders.mpPaymentId,
+                  paymentId
+                )
+              )
+            )
+            .run();
+
+
+        if (
+          chargebackResult.changes !==
+          1
+        ) {
+          throw new PaymentOrderStateError(
+            "Pedido mudou durante suspensão por chargeback."
+          );
+        }
+
+
+        return {
+          orderId:
+            order.id,
+
+          orderStatus:
+            "charged_back",
+
+          paymentStatus,
+
+          outcome:
+            "charged_back",
+        };
+      }
+
+
+      /**
+       * A partir daqui só resta paymentStatus
+       * "approved" sem qualquer refund.
+       *
+       * Um approved antigo jamais restaura compra
+       * refunded ou charged_back.
+       */
+      if (
+        order.status ===
+          "refunded" ||
+        order.status ===
+          "charged_back"
+      ) {
+        return {
+          orderId:
+            order.id,
+
+          orderStatus:
+            order.status,
+
+          paymentStatus,
+
+          outcome:
+            "ignored",
+        };
+      }
+
+
       /**
        * Pedido já aprovado:
        *
        * somente o MESMO payment_id é considerado
        * repetição idempotente.
-       *
-       * Outro pagamento tentando assumir um pedido
-       * já aprovado é conflito financeiro.
        */
       if (
         order.status ===
@@ -292,8 +778,7 @@ export function applyMercadoPagoPaymentState(
           orderStatus:
             "approved",
 
-          paymentStatus:
-            input.paymentStatus,
+          paymentStatus,
 
           outcome:
             "already_approved",
@@ -302,13 +787,9 @@ export function applyMercadoPagoPaymentState(
 
 
       /**
-       * A máquina atual permite exclusivamente:
+       * A única promoção inicial aceita continua:
        *
        * pending -> approved
-       *
-       * Estados históricos como rejected, refunded
-       * ou qualquer outro não são reabertos
-       * automaticamente.
        */
       if (
         order.status !==
@@ -321,8 +802,7 @@ export function applyMercadoPagoPaymentState(
           orderStatus:
             order.status,
 
-          paymentStatus:
-            input.paymentStatus,
+          paymentStatus,
 
           outcome:
             "ignored",

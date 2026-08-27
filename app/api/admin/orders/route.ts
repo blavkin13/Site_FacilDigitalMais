@@ -22,11 +22,71 @@ export async function GET(request: NextRequest) {
     }
 
     // Parâmetros de filtro
-    const searchParams = request.nextUrl.searchParams;
-    const status = searchParams.get("status");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
-    const offset = (page - 1) * limit;
+    const searchParams =
+      request.nextUrl
+        .searchParams;
+
+    const status =
+      searchParams.get(
+        "status"
+      );
+
+    const readableStatuses =
+      new Set<string>([
+        "pending",
+        "approved",
+        "rejected",
+        "refunded",
+        "charged_back",
+      ]);
+
+
+    /**
+     * O GET pode consultar charged_back,
+     * porém não aceita estados arbitrários.
+     *
+     * Isso é independente do PATCH:
+     * consultar chargeback é permitido;
+     * fabricá-lo manualmente não é.
+     */
+    if (
+      status &&
+      !readableStatuses.has(
+        status
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Status inválido.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+
+    const page =
+      parseInt(
+        searchParams.get(
+          "page"
+        ) ||
+          "1"
+      );
+
+    const limit =
+      parseInt(
+        searchParams.get(
+          "limit"
+        ) ||
+          "20"
+      );
+
+    const offset =
+      (page - 1) *
+      limit;
 
     // Buscar pedidos com dados do usuário
     let query = db
@@ -120,7 +180,20 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
     }
 
-    const validStatuses = ["pending", "approved", "rejected", "refunded"];
+    /**
+     * charged_back não é um estado administrativo
+     * manual.
+     *
+     * Ele só pode ser produzido pela máquina
+     * financeira após confirmação do Mercado Pago.
+     */
+    const validStatuses = [
+      "pending",
+      "approved",
+      "rejected",
+      "refunded",
+    ];
+
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ error: "Status inválido." }, { status: 400 });
     }

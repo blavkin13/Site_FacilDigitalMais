@@ -192,7 +192,7 @@ describe(
   "P0 - schema financeiro dos pedidos",
   () => {
     test(
-      "banco novo deve aplicar migrations 0001-0006 e permanecer idempotente",
+      "banco novo deve aplicar migrations 0001-0007 e permanecer idempotente",
       () => {
         const databasePath =
           createTemporaryDatabasePath();
@@ -210,7 +210,7 @@ describe(
 
           assert.equal(
             firstRun.total,
-            6
+            7
           );
 
           assert.ok(
@@ -301,12 +301,12 @@ describe(
 
           assert.equal(
             secondRun.alreadyApplied,
-            6
+            7
           );
 
           assert.equal(
             secondRun.total,
-            6
+            7
           );
         } finally {
           db.close();

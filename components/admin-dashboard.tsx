@@ -47,6 +47,7 @@ interface Stats {
     totalRevenue: number;
     pendingOrders: number;
     refundedOrders: number;
+    chargedBackOrders: number;
     totalProducts: number;
     averageTicket: number;
   };
@@ -95,6 +96,27 @@ const CHART_COLORS = [
   "#ef4444",
   "#8b5cf6",
 ];
+
+const ORDER_STATUS_LABELS:
+  Record<
+    string,
+    string
+  > = {
+    pending:
+      "Pendente",
+
+    approved:
+      "Aprovado",
+
+    rejected:
+      "Rejeitado",
+
+    refunded:
+      "Reembolsado",
+
+    charged_back:
+      "Chargeback",
+  };
 
 
 export function AdminDashboard() {
@@ -531,6 +553,21 @@ export function AdminDashboard() {
 
                   <span>
                     pedidos
+                  </span>
+                </div>
+
+                <div className="stat-card warning">
+                  <small>
+                    CHARGEBACKS
+                  </small>
+
+                  <strong>
+                    {stats.summary
+                      .chargedBackOrders}
+                  </strong>
+
+                  <span>
+                    pedidos contestados
                   </span>
                 </div>
 
@@ -1015,6 +1052,10 @@ function AdminOrders() {
           <option value="refunded">
             Reembolsado
           </option>
+
+          <option value="charged_back">
+            Chargeback
+          </option>
         </select>
       </div>
 
@@ -1130,7 +1171,10 @@ function AdminOrders() {
                     <span
                       className={`status-badge status-${order.status}`}
                     >
-                      {order.status}
+                      {ORDER_STATUS_LABELS[
+                        order.status
+                      ] ??
+                        order.status}
                     </span>
                   </td>
 

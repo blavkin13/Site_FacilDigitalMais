@@ -363,6 +363,79 @@ describe(
 
 
     test(
+      "StudentDashboard libera biblioteca somente para pedidos approved e sinaliza chargeback",
+      async () => {
+        const content =
+          await readFile(
+            join(
+              process.cwd(),
+              "components",
+              "student-dashboard.tsx"
+            ),
+            "utf-8"
+          );
+
+
+        /**
+         * A biblioteca do aluno representa
+         * entitlement ativo.
+         *
+         * O histórico pode conter qualquer status,
+         * mas somente pedidos approved podem gerar
+         * materiais disponíveis para acesso.
+         */
+        assert.match(
+          content,
+          /const\s+purchasedProducts\s*=\s*orders[\s\S]*?\.filter\s*\([\s\S]*?order\.status\s*===\s*["']approved["'][\s\S]*?\)\s*\.flatMap/,
+          "Biblioteca deve filtrar pedidos approved antes de mapear os produtos"
+        );
+
+
+        /**
+         * Chargeback deve continuar visível no
+         * histórico financeiro do aluno com uma
+         * mensagem compreensível.
+         */
+        assert.match(
+          content,
+          /charged_back:\s*["']Pagamento contestado["']/,
+          "Aluno deve visualizar charged_back como Pagamento contestado"
+        );
+
+
+        /**
+         * Enquanto não houver estilo exclusivo,
+         * chargeback reutiliza a aparência visual
+         * de entitlement financeiro revogado.
+         */
+        assert.match(
+          content,
+          /charged_back:\s*["']status-refunded["']/,
+          "Chargeback deve utilizar classe visual de estado revogado"
+        );
+
+
+        /**
+         * O contador de materiais também deve ser
+         * derivado da biblioteca já filtrada, para
+         * não contar produtos cujo acesso foi
+         * revogado.
+         */
+        assert.match(
+          content,
+          /const\s+totalProducts\s*=\s*purchasedProducts\.length/,
+          "Quantidade de materiais deve considerar somente entitlement ativo"
+        );
+
+
+        console.log(
+          "✅ StudentDashboard revoga biblioteca em refund/chargeback e preserva histórico financeiro"
+        );
+      }
+    );
+
+
+    test(
       "minha-conta usa StudentDashboard",
       async () => {
         const content =

@@ -463,6 +463,14 @@ export interface MercadoPagoPaymentStatus {
   transaction_amount:
     number;
 
+  /**
+   * Valor acumulado já reembolsado pelo MP.
+   *
+   * Zero quando nenhum refund foi informado.
+   */
+  transaction_amount_refunded:
+    number;
+
   currency_id:
     string;
 }
@@ -577,7 +585,7 @@ export function parseMercadoPagoPaymentResponse(
 
   if (
     typeof payment.status !==
-    "string"
+      "string"
   ) {
     throw new MercadoPagoProviderError(
       "Resposta de pagamento sem status."
@@ -641,6 +649,87 @@ export function parseMercadoPagoPaymentResponse(
   }
 
 
+  /**
+   * transaction_amount_refunded pode não existir
+   * enquanto nenhum reembolso ocorreu.
+   *
+   * Quando presente:
+   *
+   * - deve ser numérico;
+   * - finito;
+   * - não negativo;
+   * - não pode possuir fração menor que centavo;
+   * - não pode ultrapassar o valor original.
+   */
+  let transactionAmountRefunded =
+    0;
+
+
+  if (
+    payment.transaction_amount_refunded !==
+      undefined &&
+    payment.transaction_amount_refunded !==
+      null
+  ) {
+    if (
+      typeof payment.transaction_amount_refunded !==
+        "number" ||
+      !Number.isFinite(
+        payment.transaction_amount_refunded
+      ) ||
+      payment.transaction_amount_refunded <
+        0
+    ) {
+      throw new MercadoPagoProviderError(
+        "Pagamento com transaction_amount_refunded inválido."
+      );
+    }
+
+
+    const refundedCents =
+      Math.round(
+        payment.transaction_amount_refunded *
+          100
+      );
+
+
+    if (
+      Math.abs(
+        payment.transaction_amount_refunded *
+          100 -
+          refundedCents
+      ) >
+      1e-9
+    ) {
+      throw new MercadoPagoProviderError(
+        "transaction_amount_refunded possui precisão monetária inválida."
+      );
+    }
+
+
+    const transactionCents =
+      Math.round(
+        payment.transaction_amount *
+          100
+      );
+
+
+    if (
+      refundedCents >
+      transactionCents
+    ) {
+      throw new MercadoPagoProviderError(
+        "transaction_amount_refunded excede transaction_amount."
+      );
+    }
+
+
+    transactionAmountRefunded =
+      refundedCents /
+      100;
+  }
+
+
   if (
     typeof payment.currency_id !==
       "string"
@@ -685,6 +774,9 @@ export function parseMercadoPagoPaymentResponse(
 
     transaction_amount:
       payment.transaction_amount,
+
+    transaction_amount_refunded:
+      transactionAmountRefunded,
 
     currency_id:
       currencyId,
