@@ -90,10 +90,17 @@
     "test:p0-refund-chargeback-state": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/p0-refund-chargeback-state.test.mjs",
     "test:p0-chargeback-provider": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/p0-chargeback-provider.test.mjs",
     "test:p0-webhook-http": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/p0-webhook-http.test.mjs",
+    "test:p0-checkout-return-state": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/p0-checkout-return-state.test.mjs",
+    "test:p0-entitlement-authority": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/p0-entitlement-authority.test.mjs",
+    "test:p0-payment-observability": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/p0-payment-observability.test.mjs",
+    "test:p0-production-security-audit": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/p0-production-security-audit.test.mjs",
+    "payment:diagnostics": "NODE_NO_WARNINGS=1 tsx scripts/payment-diagnostics.ts",
+    "security:audit": "node scripts/production-security-audit.mjs",
+    "test:p0-production-deploy": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/p0-production-deploy.test.mjs",
     "test:p0-payment-webhook-ledger-schema": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/p0-payment-webhook-ledger-schema.test.mjs",
     "test:p0-payment-webhook-ledger": "NODE_NO_WARNINGS=1 tsx --test --test-isolation=none --no-warnings tests/p0-payment-webhook-ledger.test.mjs",
     "test:production-build": "rm -rf .next && next build",
-    "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:phase3b-admin-ui test:phase3c test:phase3d test:phase3e test:phase4-backend test:phase4-admin-ui test:phase4-student-security test:phase4-qa test:p0-payment-schema test:p0-checkout-order test:p0-mercadopago-fail-closed test:p0-checkout-route-fail-closed test:p0-webhook-authentication test:p0-webhook-correlation test:p0-preference-amount test:p0-payment-financial-validation test:p0-payment-state-machine test:p0-refund-chargeback-state test:p0-chargeback-provider test:p0-webhook-http test:p0-payment-webhook-ledger-schema test:p0-payment-webhook-ledger test:production-build",
+    "test:all": "node scripts/run-test-all.mjs test:phase0 test:phase1 test:phase2 test:phase3 test:phase3b test:phase4 test:phase5 test:phase6 test:phase1-products test:phase2a-storefront test:phase2b-product-page test:phase2c-contest test:phase2d test:phase2e test:phase3a-admin test:phase3b-admin-ui test:phase3c test:phase3d test:phase3e test:phase4-backend test:phase4-admin-ui test:phase4-student-security test:phase4-qa test:p0-payment-schema test:p0-checkout-order test:p0-mercadopago-fail-closed test:p0-checkout-route-fail-closed test:p0-webhook-authentication test:p0-webhook-correlation test:p0-preference-amount test:p0-payment-financial-validation test:p0-payment-state-machine test:p0-refund-chargeback-state test:p0-chargeback-provider test:p0-webhook-http test:p0-checkout-return-state test:p0-entitlement-authority test:p0-payment-observability test:p0-production-security-audit test:p0-payment-webhook-ledger-schema test:p0-payment-webhook-ledger test:p0-production-deploy test:production-build",
     "validate": "node scripts/validate-all.mjs"
   },
   "dependencies": {

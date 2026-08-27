@@ -1,20 +1,32 @@
-import type { Metadata } from "next";
-import { Suspense } from "react";
+import type {
+  Metadata,
+} from "next";
 
-import { CheckoutSuccess } from "../../../components/checkout-success";
+import {
+  Suspense,
+} from "react";
 
-export const metadata: Metadata = {
-  title: "Compra confirmada",
-  description: "Sua compra foi realizada com sucesso.",
-};
+import {
+  CheckoutSuccess,
+} from "../../../components/checkout-success";
+
+
+export const metadata:
+  Metadata = {
+    title:
+      "Status da compra",
+
+    description:
+      "Consulte o estado da sua compra com segurança.",
+  };
+
 
 /**
- * Estado exibido enquanto o Client Component que utiliza
- * useSearchParams() é hidratado.
+ * Nenhuma confirmação financeira é apresentada
+ * durante a hidratação.
  *
- * O Suspense é necessário porque useSearchParams() depende
- * da URL do navegador e não pode ser resolvido durante a
- * pré-renderização estática da página.
+ * O estado approved somente poderá aparecer depois
+ * da consulta autenticada ao servidor.
  */
 function CheckoutSuccessLoading() {
   return (
@@ -27,19 +39,22 @@ function CheckoutSuccessLoading() {
           …
         </span>
 
-        <small>PROCESSANDO</small>
+        <small>
+          VERIFICANDO PAGAMENTO
+        </small>
 
         <h1>
           Confirmando sua compra...
         </h1>
 
         <p>
-          Aguarde enquanto carregamos os dados da confirmação.
+          Aguarde enquanto consultamos o estado financeiro registrado no servidor.
         </p>
       </div>
     </main>
   );
 }
+
 
 export default function CheckoutSuccessPage() {
   return (

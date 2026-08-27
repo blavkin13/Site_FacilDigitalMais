@@ -307,7 +307,7 @@ describe("Fase 5 - Admin, Contest Pages e JSON Loader", () => {
   });
 
   test(
-    "API admin/orders permite consultar chargeback mas não criá-lo manualmente",
+    "API admin/orders deve ser somente leitura para estados financeiros",
     async () => {
       const content =
         await readFile(
@@ -327,15 +327,38 @@ describe("Fase 5 - Admin, Contest Pages e JSON Loader", () => {
         content.includes(
           "export async function GET"
         ),
-        "Deve ter GET"
+        "API de pedidos deve continuar oferecendo GET administrativo"
       );
 
 
-      assert.ok(
-        content.includes(
-          "export async function PATCH"
-        ),
-        "Deve ter PATCH"
+      /**
+       * orders.status é provider-owned.
+       *
+       * Nenhum administrador pode fabricar:
+       *
+       * - approved;
+       * - refunded;
+       * - charged_back;
+       * - ou qualquer outra transição financeira.
+       */
+      assert.doesNotMatch(
+        content,
+        /export\s+async\s+function\s+PATCH/,
+        "API administrativa de pedidos não pode expor PATCH de status"
+      );
+
+
+      assert.doesNotMatch(
+        content,
+        /\.update\s*\(\s*orders\s*\)/,
+        "API administrativa não pode gravar diretamente em orders"
+      );
+
+
+      assert.doesNotMatch(
+        content,
+        /validStatuses/,
+        "API administrativa não deve possuir allowlist de estados manualmente editáveis"
       );
 
 
@@ -355,11 +378,24 @@ describe("Fase 5 - Admin, Contest Pages e JSON Loader", () => {
         readableStatusesMatch[1];
 
 
-      assert.match(
-        readableStatusesBlock,
-        /["']charged_back["']/,
-        "GET deve permitir consultar charged_back"
-      );
+      for (
+        const status
+        of [
+          "pending",
+          "approved",
+          "rejected",
+          "refunded",
+          "charged_back",
+        ]
+      ) {
+        assert.match(
+          readableStatusesBlock,
+          new RegExp(
+            `["']${status}["']`
+          ),
+          `GET deve permitir consultar ${status}`
+        );
+      }
 
 
       const readGuardIndex =
@@ -397,88 +433,23 @@ describe("Fase 5 - Admin, Contest Pages e JSON Loader", () => {
       );
 
 
-      const writableStatusesMatch =
-        content.match(
-          /const\s+validStatuses\s*=\s*\[([\s\S]*?)\];/
-        );
-
-
-      assert.ok(
-        writableStatusesMatch,
-        "PATCH deve possuir allowlist explícita de status editáveis"
-      );
-
-
-      const writableStatusesBlock =
-        writableStatusesMatch[1];
-
-
-      assert.match(
-        writableStatusesBlock,
-        /["']refunded["']/,
-        "PATCH deve continuar permitindo refunded"
-      );
-
-
-      assert.doesNotMatch(
-        writableStatusesBlock,
-        /["']charged_back["']/,
-        "PATCH não pode permitir charged_back manual"
-      );
-
-
-      const writeGuardIndex =
-        content.indexOf(
-          "!validStatuses.includes"
-        );
-
-
-      assert.ok(
-        writeGuardIndex >=
-          0,
-        "PATCH deve validar status contra validStatuses"
-      );
-
-
-      const writeGuardBlock =
-        content.slice(
-          writeGuardIndex,
-          writeGuardIndex +
-            500
-        );
-
-
-      assert.match(
-        writeGuardBlock,
-        /Status inválido\./,
-        "PATCH deve rejeitar status financeiro não autorizado"
-      );
-
-
-      assert.match(
-        writeGuardBlock,
-        /status:\s*400/,
-        "PATCH inválido deve retornar HTTP 400"
-      );
-
-
       assert.ok(
         content.includes(
           'role !== "admin"'
         ),
-        "API de pedidos deve validar role admin"
+        "API de pedidos deve continuar validando role admin"
       );
 
 
       console.log(
-        "[OK] admin/orders separa estados consultáveis de estados editáveis"
+        "[OK] admin/orders é read-only para estados financeiros provider-owned"
       );
     }
   );
 
 
   test(
-    "AdminDashboard exibe chargeback sem oferecer alteração manual",
+    "AdminDashboard observa estados financeiros sem permitir alteração manual",
     async () => {
       const content =
         await readFile(
@@ -507,71 +478,66 @@ describe("Fase 5 - Admin, Contest Pages e JSON Loader", () => {
 
       assert.match(
         content,
+        /<option\s+value=["']approved["']>\s*Aprovado\s*<\/option>/,
+        "Filtro deve continuar permitindo consultar pedidos aprovados"
+      );
+
+
+      assert.match(
+        content,
+        /<option\s+value=["']refunded["']>\s*Reembolsado\s*<\/option>/,
+        "Filtro deve continuar permitindo consultar pedidos reembolsados"
+      );
+
+
+      assert.match(
+        content,
         /chargedBackOrders/,
         "Dashboard deve consumir o contador de chargebacks"
       );
 
 
-      const updateStatusIndex =
-        content.indexOf(
-          "void updateStatus("
-        );
-
-
-      assert.ok(
-        updateStatusIndex >=
-          0,
-        "Dashboard deve possuir controle administrativo de status"
-      );
-
-
-      const actionSelectStart =
-        content.lastIndexOf(
-          "<select",
-          updateStatusIndex
-        );
-
-
-      const actionSelectEnd =
-        content.indexOf(
-          "</select>",
-          updateStatusIndex
-        );
-
-
-      assert.ok(
-        actionSelectStart >=
-          0 &&
-          actionSelectEnd >
-            actionSelectStart,
-        "Select administrativo de ações deve ser localizável"
-      );
-
-
-      const actionSelect =
-        content.slice(
-          actionSelectStart,
-          actionSelectEnd +
-            "</select>".length
-        );
-
-
-      assert.match(
-        actionSelect,
-        /value=["']refunded["']/,
-        "Admin deve continuar podendo registrar reembolso manual permitido"
+      /**
+       * Não deve existir mais qualquer mecanismo
+       * administrativo de alteração de orders.status.
+       */
+      assert.doesNotMatch(
+        content,
+        /async\s+function\s+updateStatus\s*\(/,
+        "Dashboard não deve possuir função de alteração manual de status"
       );
 
 
       assert.doesNotMatch(
-        actionSelect,
-        /charged_back/,
-        "Admin não pode fabricar charged_back pelo seletor de ações"
+        content,
+        /void\s+updateStatus\s*\(/,
+        "Dashboard não deve chamar alteração manual de status"
+      );
+
+
+      assert.doesNotMatch(
+        content,
+        /method:\s*["']PATCH["'][\s\S]{0,500}\/api\/admin\/orders/,
+        "Dashboard não deve enviar PATCH administrativo de pedidos"
+      );
+
+
+      assert.doesNotMatch(
+        content,
+        />\s*Aprovar\s*</,
+        "Dashboard não deve oferecer ação manual Aprovar"
+      );
+
+
+      assert.doesNotMatch(
+        content,
+        />\s*Reembolsar\s*</,
+        "Dashboard não deve oferecer ação manual Reembolsar"
       );
 
 
       console.log(
-        "[OK] AdminDashboard exibe chargeback somente como estado financeiro observado"
+        "[OK] AdminDashboard trata estados financeiros como somente leitura"
       );
     }
   );

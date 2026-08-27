@@ -415,9 +415,16 @@ export async function createPaymentPreference(data: CheckoutData): Promise<{
     }
 
 
+    /**
+     * Não despejamos o objeto bruto retornado pelo
+     * SDK no log.
+     *
+     * Erros do provedor podem conter metadados de
+     * request/response que não pertencem ao log
+     * operacional da aplicação.
+     */
     console.error(
-      "Erro ao criar preferência Mercado Pago:",
-      error
+      "Falha do provedor ao criar preferência Mercado Pago."
     );
 
 
@@ -1086,9 +1093,14 @@ export async function getPaymentStatus(
     }
 
 
+    /**
+     * O objeto bruto do SDK não é registrado.
+     *
+     * payment_id e resultado operacional já possuem
+     * trilha própria no ledger/webhook.
+     */
     console.error(
-      "Erro ao consultar pagamento:",
-      error
+      "Falha do provedor ao consultar pagamento Mercado Pago."
     );
 
 

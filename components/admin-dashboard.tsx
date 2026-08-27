@@ -955,53 +955,6 @@ function AdminOrders() {
   }
 
 
-  async function updateStatus(
-    orderId: number,
-    newStatus: string
-  ) {
-    if (
-      !window.confirm(
-        `Atualizar pedido #${orderId} para ${newStatus}?`
-      )
-    ) {
-      return;
-    }
-
-
-    try {
-      await fetch(
-        "/api/admin/orders",
-        {
-          method:
-            "PATCH",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          credentials:
-            "include",
-
-          body:
-            JSON.stringify({
-              orderId,
-              status:
-                newStatus,
-            }),
-        }
-      );
-
-
-      await fetchOrders();
-    } catch {
-      window.alert(
-        "Erro ao atualizar"
-      );
-    }
-  }
-
-
   if (
     loading
   ) {
@@ -1086,10 +1039,6 @@ function AdminOrders() {
 
               <th>
                 Data
-              </th>
-
-              <th>
-                Ações
               </th>
             </tr>
           </thead>
@@ -1184,44 +1133,6 @@ function AdminOrders() {
                     ).toLocaleDateString(
                       "pt-BR"
                     )}
-                  </td>
-
-                  <td>
-                    <select
-                      onChange={
-                        (
-                          event
-                        ) =>
-                          void updateStatus(
-                            order.id,
-                            event.target.value
-                          )
-                      }
-                      defaultValue=""
-                      style={{
-                        fontSize:
-                          "0.8em",
-
-                        padding:
-                          "0.3rem",
-                      }}
-                    >
-                      <option value="">
-                        Alterar...
-                      </option>
-
-                      <option value="approved">
-                        Aprovar
-                      </option>
-
-                      <option value="rejected">
-                        Rejeitar
-                      </option>
-
-                      <option value="refunded">
-                        Reembolsar
-                      </option>
-                    </select>
                   </td>
                 </tr>
               )

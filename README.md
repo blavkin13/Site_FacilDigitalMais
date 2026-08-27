@@ -1,3 +1,4 @@
+
 # Facil Digital+ - Plataforma de Apostilas para Concursos
 
 > Status atual: hardening pre-producao em andamento.
@@ -258,6 +259,24 @@ Enquanto o hardening financeiro P0 nao estiver concluido e validado, pagamentos 
 
 Nenhuma credencial real do Mercado Pago deve ser registrada neste repositorio.
 
+### Autoridade sobre estados financeiros dos pedidos
+
+Os estados financeiros de `orders.status` são controlados pelo fluxo
+confirmado do provedor de pagamento.
+
+O painel administrativo pode consultar e filtrar pedidos por `pending`,
+`approved`, `rejected`, `refunded` e `charged_back`, mas não pode alterar
+manualmente esses estados.
+
+Em especial:
+
+- `approved` somente pode liberar entitlement após confirmação financeira;
+- `refunded` somente representa reembolso confirmado pelo fluxo financeiro;
+- `charged_back` somente representa contestação confirmada pelo provedor.
+
+Uma futura suspensão ou liberação administrativa de acesso deverá utilizar
+um mecanismo próprio e não reutilizar estados financeiros do Mercado Pago.
+
 ## Variaveis de ambiente
 
 Use `.env.example` apenas como referencia.
@@ -279,8 +298,6 @@ Variaveis principais:
     ADMIN_SEED_NAME
     ADMIN_SEED_PASSWORD
     MERCADO_PAGO_ACCESS_TOKEN
-    MERCADO_PAGO_WEBHOOK_SECRET
-
     MERCADO_PAGO_WEBHOOK_SECRET
 
 `APP_BASE_URL` e a origem canonica da aplicacao e a unica origem
@@ -316,7 +333,7 @@ Cada nova fase de implementacao deve adicionar ou atualizar cobertura automatiza
 
 ## Deploy Hostinger VPS
 
-A topologia prevista para producao e:
+A topologia de producao e:
 
     HTTPS
       |
@@ -344,6 +361,108 @@ O processo deve utilizar:
 
 Nao utilize cluster PM2 com o SQLite atual.
 
+### Configuracao protegida de producao
+
+Segredos e configuracoes operacionais de producao nao devem ficar dentro
+do repositorio.
+
+O arquivo oficial de ambiente da VPS e:
+
+    /etc/facil-digital-plus/production.env
+
+O arquivo deve pertencer ao usuario utilizado para executar a aplicacao
+e nao pode conceder leitura para grupo ou outros.
+
+Configuracao recomendada:
+
+    sudo mkdir -p /etc/facil-digital-plus
+    sudo chmod 750 /etc/facil-digital-plus
+    sudo touch /etc/facil-digital-plus/production.env
+    sudo chmod 600 /etc/facil-digital-plus/production.env
+
+O arquivo nao deve ser enviado para o GitHub.
+
+Antes da ativacao financeira, ele pode conter somente as configuracoes
+nao secretas e os caminhos persistentes necessarios ao site, por exemplo:
+
+    NODE_ENV=production
+    APP_BASE_URL=https://facildigitalmais.com
+    NEXT_PUBLIC_BASE_URL=https://facildigitalmais.com
+    DATABASE_PATH=/var/lib/facil-digital-plus/database/prod.db
+    DATABASE_BACKUP_DIR=/var/backups/facil-digital-plus/sqlite
+    DATABASE_BACKUP_RETENTION=14
+    UPLOAD_ROOT_DIR=/var/lib/facil-digital-plus/uploads
+    PROTECTED_PDF_DIR=/var/lib/facil-digital-plus/protected
+
+As variaveis:
+
+    MERCADO_PAGO_ACCESS_TOKEN
+    MERCADO_PAGO_WEBHOOK_SECRET
+
+somente devem ser acrescentadas no servidor protegido quando a integracao
+real com o Mercado Pago for ativada.
+
+Nunca registre os valores dessas variaveis em terminal compartilhado,
+README, GitHub, issue, commit ou mensagem de suporte.
+
+O PM2 recebe apenas:
+
+    --env-file=/etc/facil-digital-plus/production.env
+
+e o proprio Node.js carrega os valores protegidos durante a inicializacao.
+
+### Ordem segura do deploy
+
+O script:
+
+    scripts/deploy-hostinger.sh
+
+aceita deploy de producao somente a partir de `main` e exige worktree limpa.
+
+A ordem operacional e:
+
+    validar configuracao
+      ->
+    npm ci
+      ->
+    build
+      ->
+    backup PRE-MIGRATION
+      ->
+    migrations
+      ->
+    restart/start PM2
+      ->
+    pm2 save
+      ->
+    smoke test
+
+O backup e obrigatoriamente criado antes de qualquer nova migration.
+
+A rotina de backup nao executa `initDatabase()` nem migrations. Ela utiliza
+a Online Backup API do SQLite e somente considera o backup valido depois de
+`PRAGMA integrity_check`.
+
+O deploy nao executa seeds automaticamente.
+
+A origem pública canônica é:
+
+    https://facildigitalmais.com
+
+O Nginx deve convergir todos os acessos para essa origem:
+
+- HTTP em `facildigitalmais.com` redireciona para HTTPS canônico;
+- HTTP em `www.facildigitalmais.com` redireciona para HTTPS canônico;
+- HTTPS em `www.facildigitalmais.com` redireciona para `https://facildigitalmais.com`;
+- somente `https://facildigitalmais.com` é encaminhado para a aplicação Next.js.
+
+O certificado TLS utilizado pelo servidor de redirecionamento HTTPS deve
+cobrir também `www.facildigitalmais.com`.
+
+Assets do Next.js, inclusive `/_next/static`, permanecem sob responsabilidade
+da aplicação. Não utilize `location` regex de extensão sem `proxy_pass` ou
+`root` explícito, pois isso pode interceptar JavaScript/CSS antes do Next.js.
+
 O Nginx deve preservar corretamente:
 
 - Host;
@@ -354,7 +473,8 @@ O Nginx deve preservar corretamente:
 
 Durante a configuracao atual do projeto, scripts operacionais utilizam `tsx`.
 
-Por isso, o VPS deve instalar as dependencias completas enquanto essa dependencia operacional permanecer em `devDependencies`.
+Por isso, o VPS deve instalar as dependencias completas enquanto essa
+dependencia operacional permanecer em `devDependencies`.
 
 Nao utilizar `npm ci --omit=dev` sem antes refatorar o tooling operacional.
 
@@ -400,19 +520,286 @@ O fluxo recomendado e:
       ->
     merge na main
       ->
-    backup
+    deploy pela main
       ->
-    deploy
+    build de producao
+      ->
+    backup PRE-MIGRATION
       ->
     migrations
       ->
-    restart
+    restart PM2
       ->
     smoke test
 
 Nao utilizar force push para contornar conflitos.
 
 Nao editar diretamente migrations historicas.
+
+### Rollback de producao
+
+O rollback nao deve ser executado automaticamente pelo script de deploy.
+
+Se uma migration, inicializacao ou smoke de producao falhar:
+
+    1. interromper o processo PM2;
+    2. preservar logs e o banco que apresentou a falha;
+    3. restaurar o codigo para o commit anteriormente implantado;
+    4. executar npm ci e gerar novamente o build desse commit;
+    5. restaurar o backup PRE-MIGRATION correspondente;
+    6. remover arquivos WAL/SHM residuais somente com a aplicacao parada;
+    7. iniciar novamente o processo PM2;
+    8. executar integrity_check e smoke test.
+
+Nunca restaure o arquivo SQLite principal enquanto o processo Next.js
+estiver utilizando o banco.
+
+Exemplo conceitual, com a aplicacao ja parada:
+
+    pm2 stop facil-digital-mais
+
+    DATABASE_PATH="$(
+      node \
+        --env-file=/etc/facil-digital-plus/production.env \
+        -p 'process.env.DATABASE_PATH'
+    )"
+
+    mv "$DATABASE_PATH" "${DATABASE_PATH}.failed"
+
+    rm -f \
+      "${DATABASE_PATH}-wal" \
+      "${DATABASE_PATH}-shm"
+
+    install \
+      -m 640 \
+      /CAMINHO/DO/BACKUP-PRE-MIGRATION.db \
+      "$DATABASE_PATH"
+
+Depois, restaure o commit anterior, gere novamente o build e inicie:
+
+    pm2 start ecosystem.config.cjs --only facil-digital-mais
+    pm2 save
+
+O caminho real do backup deve ser obtido da saida produzida por
+`npm run db:backup` ou pelo deploy. Nao substitua `/CAMINHO/DO/BACKUP-PRE-MIGRATION.db`
+sem antes identificar o backup correto.
+
+## Diagnostico financeiro e observabilidade
+
+O processamento financeiro possui um ledger duravel em:
+
+    payment_webhook_events
+
+O ledger e a fonte operacional para investigar entrega e processamento
+de webhooks do Mercado Pago.
+
+Ele nao substitui `orders` como autoridade de entitlement.
+
+A regra comercial continua sendo:
+
+    orders.status === approved
+
+O projeto possui uma ferramenta oficial de diagnostico financeiro:
+
+    npm run payment:diagnostics
+
+A ferramenta e estritamente somente leitura.
+
+Ela:
+
+- nao executa migrations;
+- nao altera pedidos;
+- nao altera o ledger;
+- nao consulta a API do Mercado Pago;
+- nao exige Access Token;
+- nao exige Webhook Secret;
+- nao imprime CPF;
+- nao imprime e-mail;
+- nao imprime secrets;
+- abre o SQLite em modo readonly;
+- ativa `PRAGMA query_only = ON`.
+
+Por padrao, pedidos `pending` com mais de 24 horas sao destacados:
+
+    npm run payment:diagnostics
+
+Para alterar a janela:
+
+    npm run payment:diagnostics -- --pending-hours=48
+
+Para limitar a quantidade de registros exibidos em cada secao:
+
+    npm run payment:diagnostics -- --limit=50
+
+Para saida JSON estruturada:
+
+    npm run payment:diagnostics -- --json
+
+As opcoes podem ser combinadas:
+
+    npm run payment:diagnostics -- --pending-hours=48 --limit=50 --json
+
+No servidor de producao, o diagnostico deve carregar o mesmo arquivo
+protegido utilizado pelo PM2:
+
+    node \
+      --env-file=/etc/facil-digital-plus/production.env \
+      --import tsx \
+      scripts/payment-diagnostics.ts
+
+O comando acima nao imprime o conteudo de `production.env`.
+
+O diagnostico destaca:
+
+    processed / ignored / quarantined
+    reentregas com occurrence_count > 1
+    ultimo webhook persistido
+    pedidos approved sem mp_payment_id
+    pedidos pending antigos
+    pedidos refunded
+    pedidos charged_back
+    external_reference do ledger sem pedido correspondente
+    divergencia entre payment_id do ledger e payment_id canonico do pedido
+
+Um resultado:
+
+    health: attention
+
+nao deve ser corrigido editando `orders.status` manualmente.
+
+A investigacao deve usar:
+
+    request_id
+    payment_id
+    outcome
+    error_code
+    occurrence_count
+    timestamps
+
+e confrontar o incidente com os logs e, quando a integracao real estiver
+ativa, com o recurso canonico correspondente no Mercado Pago.
+
+### Logs estruturados de webhook
+
+Depois que um evento financeiro e persistido com sucesso no ledger,
+a aplicacao produz um registro JSON com o evento:
+
+    mercadopago.webhook.ledger
+
+Os campos permitidos sao:
+
+    timestamp
+    event
+    topic
+    level
+    request_id
+    payment_id
+    outcome
+    error_code
+    duplicate
+    occurrence_count
+    http_status
+
+O log estruturado nao inclui:
+
+    MERCADO_PAGO_ACCESS_TOKEN
+    MERCADO_PAGO_WEBHOOK_SECRET
+    x-signature
+    payload bruto
+    external_reference
+    valores financeiros
+    CPF
+    e-mail
+    nome do comprador
+
+Falha do mecanismo de logging nao interfere no processamento financeiro.
+
+A persistencia do ledger, por outro lado, continua fail-closed:
+se o ledger nao puder ser persistido, o webhook deve responder com erro
+para permitir nova entrega pelo provedor.
+
+## Auditoria final de seguranca pre-producao
+
+Antes de considerar um release apto a ser implantado na VPS, execute:
+
+    npm run security:audit
+
+A auditoria e somente leitura.
+
+Ela nao:
+
+- altera arquivos;
+- altera o SQLite;
+- executa migrations;
+- executa seeds;
+- consulta o Mercado Pago;
+- le o conteudo de `/etc/facil-digital-plus/production.env`;
+- imprime credenciais.
+
+Para obter o resultado em JSON:
+
+    npm run security:audit -- --json
+
+O gate verifica, entre outros contratos:
+
+    somente .env.example pode estar versionado
+    credenciais Mercado Pago devem permanecer ausentes do repositorio
+    APP_BASE_URL e a autoridade de origem de producao
+    NEXT_PUBLIC_BASE_URL nao participa da autoridade CSRF
+    webhook autentica antes de banco/provedor
+    payment e topic_chargebacks_wh permanecem suportados
+    checkout nao aceita preco do browser como autoridade
+    retorno do checkout e autenticado e read-only
+    query string nao confirma pagamento
+    admin nao altera estado financeiro de pedidos
+    writers de orders permanecem restritos
+    paths persistentes ficam fora do release
+    PM2 usa production.env protegido
+    backup ocorre antes das migrations
+    deploy nao executa seeds
+    Nginx encaminha somente para 127.0.0.1:3000
+    dados persistentes nao sao publicados pelo Nginx
+
+O resultado esperado para um release candidate e:
+
+    resultado: passed
+    falharam: 0
+
+Qualquer falha neste gate bloqueia o deploy ate investigacao.
+
+O arquivo real de producao permanece fora do repositorio:
+
+    /etc/facil-digital-plus/production.env
+
+Ele deve continuar protegido por permissoes restritivas e carregado
+atraves de `node --env-file`, nunca por `source` em shell interativo.
+
+As credenciais reais do Mercado Pago somente devem ser adicionadas ao
+arquivo protegido da VPS quando a aplicacao ja estiver implantada na
+Hostinger e a ativacao controlada dos pagamentos for iniciada.
+
+A auditoria de seguranca nao substitui:
+
+    npm run test:all
+    npm run build
+    npm run payment:diagnostics
+
+Os quatro gates possuem objetivos diferentes:
+
+    security:audit
+        configuracao e invariantes de seguranca
+
+    test:all
+        regressao funcional e estrutural
+
+    build
+        compilacao de producao
+
+    payment:diagnostics
+        estado operacional do ledger e pedidos
+
+Nenhum incidente financeiro deve ser corrigido alterando manualmente
+`orders.status`, `mp_payment_id` ou `external_reference`.
 
 ## Segredos e credenciais
 

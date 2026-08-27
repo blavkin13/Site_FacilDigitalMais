@@ -66,7 +66,7 @@ export function CheckoutReal() {
 
       if (
         typeof data.checkoutUrl !==
-        "string"
+          "string"
       ) {
         setError(
           "Resposta de pagamento inválida."
@@ -96,13 +96,48 @@ export function CheckoutReal() {
 
       if (
         checkoutUrl.protocol !==
-        "https:"
+          "https:"
       ) {
         setError(
           "Resposta de pagamento insegura."
         );
 
         return;
+      }
+
+
+      /**
+       * external_reference é salvo somente como
+       * mecanismo auxiliar de localização quando o
+       * usuário retornar do Mercado Pago.
+       *
+       * O valor não possui autoridade financeira.
+       *
+       * Mesmo que sessionStorage seja manipulado,
+       * o endpoint /api/checkout/status:
+       *
+       * - exige sessão autenticada;
+       * - exige propriedade do pedido;
+       * - lê o status persistido no servidor.
+       */
+      if (
+        typeof data.orderReference ===
+          "string" &&
+        data.orderReference.trim()
+      ) {
+        try {
+          window.sessionStorage.setItem(
+            "fd-checkout-order-reference",
+            data.orderReference.trim()
+          );
+        } catch {
+          /**
+           * sessionStorage é apenas fallback.
+           *
+           * Sua indisponibilidade não deve impedir
+           * o redirecionamento ao provedor.
+           */
+        }
       }
 
 

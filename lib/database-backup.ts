@@ -3,6 +3,10 @@ import {
 } from "node:crypto";
 
 import {
+  existsSync,
+} from "node:fs";
+
+import {
   mkdir,
   readdir,
   unlink,
@@ -16,12 +20,9 @@ import {
 import Database from "better-sqlite3";
 
 import {
+  getDatabasePath,
   getSqliteConnection,
 } from "../db/index";
-
-import {
-  initDatabase,
-} from "../db/init";
 
 
 const BACKUP_PREFIX =
@@ -362,7 +363,44 @@ export async function createDatabaseBackup({
   );
 
 
-  await initDatabase();
+  /**
+   * Backup e migration são operações
+   * deliberadamente separadas.
+   *
+   * createDatabaseBackup() NÃO deve chamar
+   * initDatabase(), pois initDatabase() executa
+   * migrations.
+   *
+   * Isso garante que, durante um deploy, o backup
+   * represente exatamente o estado do banco ANTES
+   * da migration.
+   */
+  const databasePath =
+    getDatabasePath();
+
+
+
+  /**
+   * Abrir better-sqlite3 sobre um caminho inexistente
+   * criaria um banco vazio.
+   *
+   * Para uma rotina de backup isso seria perigoso:
+   * um DATABASE_PATH incorreto poderia produzir um
+   * "backup" válido, porém sem os dados reais.
+   *
+   * Portanto o banco precisa existir antes de qualquer
+   * conexão utilizada pela rotina de backup.
+   */
+  if (
+    !existsSync(
+      databasePath
+    )
+  ) {
+    throw new Error(
+      `Banco SQLite não encontrado para backup: ${databasePath}`
+    );
+  }
+
 
 
   const sqlite =

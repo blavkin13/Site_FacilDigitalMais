@@ -47,6 +47,10 @@ import {
   type RecordPaymentWebhookEventInput,
 } from "./payment-webhook-ledger";
 
+import {
+  logPaymentWebhookLedgerEvent,
+} from "./payment-observability";
+
 
 interface MercadoPagoWebhookDependencies {
   initializeDatabase:
@@ -140,11 +144,48 @@ export function createMercadoPagoWebhookPostHandler(
       RecordPaymentWebhookEventInput
   ) => {
     try {
-      return dependencies
-        .recordLedger(
-          db,
-          input
-        );
+      const result =
+        dependencies
+          .recordLedger(
+            db,
+            input
+          );
+
+
+      /**
+       * Observabilidade ocorre somente DEPOIS que
+       * o ledger durável confirmou a persistência.
+       *
+       * O logger é best-effort e não pode interferir
+       * na decisão financeira.
+       *
+       * Nenhum payload, secret ou informação pessoal
+       * é enviado ao log estruturado.
+       */
+      logPaymentWebhookLedgerEvent(
+        {
+          requestId:
+            input.requestId,
+
+          paymentId:
+            input.paymentId,
+
+          outcome:
+            input.outcome,
+
+          errorCode:
+            input.errorCode,
+
+          duplicate:
+            result.duplicate,
+
+          occurrenceCount:
+            result.occurrenceCount,
+        }
+      );
+
+
+      return result;
     } catch (error) {
       if (
         error instanceof
@@ -154,9 +195,14 @@ export function createMercadoPagoWebhookPostHandler(
       }
 
 
+      /**
+       * Não imprimimos o objeto Error bruto.
+       *
+       * A falha operacional permanece reconhecível
+       * sem despejar stack/payload no log financeiro.
+       */
       console.error(
-        "Falha inesperada ao registrar ledger do webhook:",
-        error
+        "Falha inesperada ao registrar ledger do webhook."
       );
 
 
@@ -709,9 +755,12 @@ export function createMercadoPagoWebhookPostHandler(
         );
 
 
-        console.warn(
-          `Webhook Mercado Pago colocado em quarentena: ${quarantineCode}; payment_id=${paymentStatus.id}; external_reference=${paymentStatus.external_reference}.`
-        );
+        /**
+         * A quarentena já foi persistida no ledger e
+         * registrada pelo logger financeiro estruturado.
+         *
+         * Não duplicamos external_reference no console.
+         */
 
 
         return NextResponse.json(
