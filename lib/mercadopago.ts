@@ -1,4 +1,5 @@
 import {
+  Chargeback,
   MercadoPagoConfig,
   Payment,
   Preference,
@@ -55,6 +56,13 @@ function createPreferenceClient():
 function createPaymentClient():
   Payment {
   return new Payment(
+    createMercadoPagoClient()
+  );
+}
+
+function createChargebackClient():
+  Chargeback {
+  return new Chargeback(
     createMercadoPagoClient()
   );
 }
@@ -502,6 +510,246 @@ function normalizePaymentIdentifier(
 }
 
 
+export interface MercadoPagoChargebackReference {
+  chargebackId:
+    string;
+
+  paymentId:
+    string;
+}
+
+
+/**
+ * Converte a resposta autenticada de
+ * GET /v1/chargebacks/{id}
+ * em uma referência canônica ao pagamento.
+ *
+ * Existem atualmente duas representações
+ * observáveis no ecossistema oficial:
+ *
+ * - SDK Node 3.4.0:
+ *     payment_id
+ *
+ * - documentação da API:
+ *     payments: [...]
+ *
+ * Não confiamos em apenas uma delas.
+ *
+ * Entretanto, a contestação só pode seguir para
+ * nossa máquina financeira se todas as referências
+ * presentes convergirem para exatamente um
+ * payment_id.
+ */
+export function parseMercadoPagoChargebackResponse(
+  response:
+    unknown,
+
+  requestedChargebackId:
+    string
+): MercadoPagoChargebackReference {
+  const normalizedRequestedId =
+    requestedChargebackId
+      .trim();
+
+
+  if (
+    !normalizedRequestedId
+  ) {
+    throw new MercadoPagoProviderError(
+      "chargeback_id solicitado é inválido."
+    );
+  }
+
+
+  if (
+    !response ||
+    typeof response !==
+      "object" ||
+    Array.isArray(
+      response
+    )
+  ) {
+    throw new MercadoPagoProviderError(
+      "Resposta de contestação inválida."
+    );
+  }
+
+
+  const chargeback =
+    response as Record<
+      string,
+      unknown
+    >;
+
+
+  const chargebackId =
+    normalizePaymentIdentifier(
+      chargeback.id
+    );
+
+
+  if (!chargebackId) {
+    throw new MercadoPagoProviderError(
+      "Resposta de contestação sem id."
+    );
+  }
+
+
+  /**
+   * O recurso retornado pelo Mercado Pago precisa
+   * ser exatamente a contestação autenticada pelo
+   * webhook.
+   */
+  if (
+    chargebackId !==
+    normalizedRequestedId
+  ) {
+    throw new MercadoPagoProviderError(
+      "chargeback_id retornado diverge do solicitado."
+    );
+  }
+
+
+  const paymentIds =
+    new Set<string>();
+
+
+  /**
+   * Formato tipado pelo SDK Node 3.4.0.
+   */
+  if (
+    chargeback.payment_id !==
+      undefined &&
+    chargeback.payment_id !==
+      null
+  ) {
+    const paymentId =
+      normalizePaymentIdentifier(
+        chargeback.payment_id
+      );
+
+
+    if (!paymentId) {
+      throw new MercadoPagoProviderError(
+        "Contestação possui payment_id inválido."
+      );
+    }
+
+
+    paymentIds.add(
+      paymentId
+    );
+  }
+
+
+  /**
+   * Formato documentado pela API do Mercado Pago.
+   *
+   * A documentação atual descreve `payments` como
+   * lista. Aceitamos também um único identificador
+   * escalar porque versões/respostas históricas da
+   * API já apresentaram essa representação.
+   */
+  if (
+    chargeback.payments !==
+      undefined &&
+    chargeback.payments !==
+      null
+  ) {
+    const rawPayments =
+      Array.isArray(
+        chargeback.payments
+      )
+        ? chargeback.payments
+        : [
+            chargeback.payments,
+          ];
+
+
+    if (
+      rawPayments.length ===
+      0
+    ) {
+      throw new MercadoPagoProviderError(
+        "Contestação sem pagamentos associados."
+      );
+    }
+
+
+    for (
+      const rawPaymentId
+      of rawPayments
+    ) {
+      const paymentId =
+        normalizePaymentIdentifier(
+          rawPaymentId
+        );
+
+
+      if (!paymentId) {
+        throw new MercadoPagoProviderError(
+          "Contestação possui payment_id inválido."
+        );
+      }
+
+
+      paymentIds.add(
+        paymentId
+      );
+    }
+  }
+
+
+  if (
+    paymentIds.size ===
+    0
+  ) {
+    throw new MercadoPagoProviderError(
+      "Contestação sem payment_id canônico."
+    );
+  }
+
+
+  /**
+   * Nosso pedido possui uma identidade financeira
+   * canônica.
+   *
+   * Se a resposta do provedor apontar para mais de
+   * um pagamento distinto, não escolhemos um deles
+   * arbitrariamente.
+   */
+  if (
+    paymentIds.size !==
+    1
+  ) {
+    throw new MercadoPagoProviderError(
+      "Contestação referencia múltiplos pagamentos."
+    );
+  }
+
+
+  const paymentId =
+    paymentIds
+      .values()
+      .next()
+      .value;
+
+
+  if (!paymentId) {
+    throw new MercadoPagoProviderError(
+      "Contestação sem payment_id canônico."
+    );
+  }
+
+
+  return {
+    chargebackId,
+
+    paymentId,
+  };
+}
+
+
 function isMercadoPagoPaymentStatus(
   value:
     string
@@ -846,6 +1094,83 @@ export async function getPaymentStatus(
 
     throw new MercadoPagoProviderError(
       "Falha ao verificar pagamento."
+    );
+  }
+}
+
+/**
+ * Resolve uma contestação autenticada para o
+ * payment_id canônico informado pelo próprio
+ * Mercado Pago.
+ *
+ * O body original do webhook NÃO é autoridade
+ * sobre qual pagamento deve ser modificado.
+ */
+export async function getMercadoPagoChargebackPaymentId(
+  chargebackId:
+    string
+): Promise<string> {
+  const normalizedChargebackId =
+    chargebackId
+      .trim();
+
+
+  if (
+    !normalizedChargebackId
+  ) {
+    throw new MercadoPagoProviderError(
+      "chargeback_id solicitado é inválido."
+    );
+  }
+
+
+  try {
+    const chargeback =
+      createChargebackClient();
+
+
+    const response =
+      await chargeback.get(
+        {
+          id:
+            normalizedChargebackId,
+        }
+      );
+
+
+    const parsed =
+      parseMercadoPagoChargebackResponse(
+        response,
+        normalizedChargebackId
+      );
+
+
+    return parsed.paymentId;
+  } catch (error) {
+    if (
+      error instanceof
+      PaymentConfigurationError
+    ) {
+      throw error;
+    }
+
+
+    if (
+      error instanceof
+      MercadoPagoProviderError
+    ) {
+      throw error;
+    }
+
+
+    console.error(
+      "Erro ao consultar contestação Mercado Pago:",
+      error
+    );
+
+
+    throw new MercadoPagoProviderError(
+      "Falha ao verificar contestação."
     );
   }
 }

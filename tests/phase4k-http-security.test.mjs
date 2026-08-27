@@ -808,5 +808,759 @@ describe(
         );
       }
     );
+
+
+    test(
+      "produção deve confiar somente em APP_BASE_URL para Origin explícita",
+      () => {
+        const previousNodeEnv =
+          process.env.NODE_ENV;
+
+        const previousAppBaseUrl =
+          process.env.APP_BASE_URL;
+
+        const previousPublicBaseUrl =
+          process.env.NEXT_PUBLIC_BASE_URL;
+
+
+        try {
+          process.env.NODE_ENV =
+            "production";
+
+          process.env.APP_BASE_URL =
+            "https://facildigitalmais.com";
+
+          /**
+           * Mesmo configurada, esta variável não
+           * possui autoridade de segurança.
+           */
+          process.env.NEXT_PUBLIC_BASE_URL =
+            "https://site-malicioso.example";
+
+
+          const headers =
+            new Headers();
+
+
+          headers.set(
+            "origin",
+            "https://facildigitalmais.com"
+          );
+
+
+          /**
+           * Simulamos o Next.js escutando apenas na
+           * origem interna da VPS.
+           */
+          headers.set(
+            "host",
+            "127.0.0.1:3000"
+          );
+
+
+          headers.set(
+            "x-forwarded-host",
+            "facildigitalmais.com"
+          );
+
+
+          headers.set(
+            "x-forwarded-proto",
+            "https"
+          );
+
+
+          headers.set(
+            "sec-fetch-site",
+            "same-origin"
+          );
+
+
+          const productionRequest =
+            new NextRequest(
+              "http://127.0.0.1:3000/api/auth/login",
+              {
+                method:
+                  "POST",
+
+                headers,
+              }
+            );
+
+
+          const decision =
+            validateSameOriginMutation(
+              productionRequest
+            );
+
+
+          assert.equal(
+            decision.allowed,
+            true
+          );
+        } finally {
+          if (
+            previousNodeEnv ===
+            undefined
+          ) {
+            delete process.env
+              .NODE_ENV;
+          } else {
+            process.env.NODE_ENV =
+              previousNodeEnv;
+          }
+
+
+          if (
+            previousAppBaseUrl ===
+            undefined
+          ) {
+            delete process.env
+              .APP_BASE_URL;
+          } else {
+            process.env.APP_BASE_URL =
+              previousAppBaseUrl;
+          }
+
+
+          if (
+            previousPublicBaseUrl ===
+            undefined
+          ) {
+            delete process.env
+              .NEXT_PUBLIC_BASE_URL;
+          } else {
+            process.env.NEXT_PUBLIC_BASE_URL =
+              previousPublicBaseUrl;
+          }
+        }
+      }
+    );
+
+
+    test(
+      "NEXT_PUBLIC_BASE_URL divergente não deve autorizar mutação em produção",
+      () => {
+        const previousNodeEnv =
+          process.env.NODE_ENV;
+
+        const previousAppBaseUrl =
+          process.env.APP_BASE_URL;
+
+        const previousPublicBaseUrl =
+          process.env.NEXT_PUBLIC_BASE_URL;
+
+
+        try {
+          process.env.NODE_ENV =
+            "production";
+
+          process.env.APP_BASE_URL =
+            "https://facildigitalmais.com";
+
+          process.env.NEXT_PUBLIC_BASE_URL =
+            "https://site-malicioso.example";
+
+
+          const headers =
+            new Headers();
+
+
+          headers.set(
+            "origin",
+            "https://site-malicioso.example"
+          );
+
+
+          headers.set(
+            "sec-fetch-site",
+            "same-origin"
+          );
+
+
+          const maliciousRequest =
+            new NextRequest(
+              "http://127.0.0.1:3000/api/auth/login",
+              {
+                method:
+                  "POST",
+
+                headers,
+              }
+            );
+
+
+          const decision =
+            validateSameOriginMutation(
+              maliciousRequest
+            );
+
+
+          assert.equal(
+            decision.allowed,
+            false
+          );
+
+
+          if (
+            !decision.allowed
+          ) {
+            assert.equal(
+              decision.reason,
+              "origin_mismatch"
+            );
+          }
+        } finally {
+          if (
+            previousNodeEnv ===
+            undefined
+          ) {
+            delete process.env
+              .NODE_ENV;
+          } else {
+            process.env.NODE_ENV =
+              previousNodeEnv;
+          }
+
+
+          if (
+            previousAppBaseUrl ===
+            undefined
+          ) {
+            delete process.env
+              .APP_BASE_URL;
+          } else {
+            process.env.APP_BASE_URL =
+              previousAppBaseUrl;
+          }
+
+
+          if (
+            previousPublicBaseUrl ===
+            undefined
+          ) {
+            delete process.env
+              .NEXT_PUBLIC_BASE_URL;
+          } else {
+            process.env.NEXT_PUBLIC_BASE_URL =
+              previousPublicBaseUrl;
+          }
+        }
+      }
+    );
+
+
+    test(
+      "headers de proxy não devem criar origem confiável em produção",
+      () => {
+        const previousNodeEnv =
+          process.env.NODE_ENV;
+
+        const previousAppBaseUrl =
+          process.env.APP_BASE_URL;
+
+
+        try {
+          process.env.NODE_ENV =
+            "production";
+
+          process.env.APP_BASE_URL =
+            "https://facildigitalmais.com";
+
+
+          const headers =
+            new Headers();
+
+
+          /**
+           * Todos os headers derivados da própria
+           * requisição tentam apontar para a origem
+           * atacante.
+           */
+          headers.set(
+            "origin",
+            "https://evil.example"
+          );
+
+
+          headers.set(
+            "host",
+            "evil.example"
+          );
+
+
+          headers.set(
+            "x-forwarded-host",
+            "evil.example"
+          );
+
+
+          headers.set(
+            "x-forwarded-proto",
+            "https"
+          );
+
+
+          headers.set(
+            "sec-fetch-site",
+            "same-origin"
+          );
+
+
+          const maliciousRequest =
+            new NextRequest(
+              "https://evil.example/api/auth/login",
+              {
+                method:
+                  "POST",
+
+                headers,
+              }
+            );
+
+
+          const decision =
+            validateSameOriginMutation(
+              maliciousRequest
+            );
+
+
+          assert.equal(
+            decision.allowed,
+            false
+          );
+
+
+          if (
+            !decision.allowed
+          ) {
+            assert.equal(
+              decision.reason,
+              "origin_mismatch"
+            );
+          }
+        } finally {
+          if (
+            previousNodeEnv ===
+            undefined
+          ) {
+            delete process.env
+              .NODE_ENV;
+          } else {
+            process.env.NODE_ENV =
+              previousNodeEnv;
+          }
+
+
+          if (
+            previousAppBaseUrl ===
+            undefined
+          ) {
+            delete process.env
+              .APP_BASE_URL;
+          } else {
+            process.env.APP_BASE_URL =
+              previousAppBaseUrl;
+          }
+        }
+      }
+    );
+
+
+    test(
+      "produção sem APP_BASE_URL não deve confiar em Host ou X-Forwarded-Host",
+      () => {
+        const previousNodeEnv =
+          process.env.NODE_ENV;
+
+        const previousAppBaseUrl =
+          process.env.APP_BASE_URL;
+
+
+        try {
+          process.env.NODE_ENV =
+            "production";
+
+          delete process.env
+            .APP_BASE_URL;
+
+
+          const headers =
+            new Headers();
+
+
+          headers.set(
+            "origin",
+            "https://facildigitalmais.com"
+          );
+
+
+          headers.set(
+            "host",
+            "facildigitalmais.com"
+          );
+
+
+          headers.set(
+            "x-forwarded-host",
+            "facildigitalmais.com"
+          );
+
+
+          headers.set(
+            "x-forwarded-proto",
+            "https"
+          );
+
+
+          headers.set(
+            "sec-fetch-site",
+            "same-origin"
+          );
+
+
+          const productionRequest =
+            new NextRequest(
+              "http://127.0.0.1:3000/api/auth/login",
+              {
+                method:
+                  "POST",
+
+                headers,
+              }
+            );
+
+
+          const decision =
+            validateSameOriginMutation(
+              productionRequest
+            );
+
+
+          assert.equal(
+            decision.allowed,
+            false
+          );
+
+
+          if (
+            !decision.allowed
+          ) {
+            assert.equal(
+              decision.reason,
+              "origin_mismatch"
+            );
+          }
+        } finally {
+          if (
+            previousNodeEnv ===
+            undefined
+          ) {
+            delete process.env
+              .NODE_ENV;
+          } else {
+            process.env.NODE_ENV =
+              previousNodeEnv;
+          }
+
+
+          if (
+            previousAppBaseUrl ===
+            undefined
+          ) {
+            delete process.env
+              .APP_BASE_URL;
+          } else {
+            process.env.APP_BASE_URL =
+              previousAppBaseUrl;
+          }
+        }
+      }
+    );
+
+
+    test(
+      "APP_BASE_URL inválida deve falhar fechado usando a mesma política do checkout",
+      () => {
+        const previousNodeEnv =
+          process.env.NODE_ENV;
+
+        const previousAppBaseUrl =
+          process.env.APP_BASE_URL;
+
+
+        try {
+          process.env.NODE_ENV =
+            "production";
+
+          /**
+           * HTTPS pública é obrigatória em produção.
+           * Esta configuração seria rejeitada também
+           * pelo checkout através de getAppBaseUrl().
+           */
+          process.env.APP_BASE_URL =
+            "http://facildigitalmais.com";
+
+
+          const headers =
+            new Headers();
+
+
+          headers.set(
+            "origin",
+            "http://facildigitalmais.com"
+          );
+
+
+          headers.set(
+            "host",
+            "facildigitalmais.com"
+          );
+
+
+          headers.set(
+            "x-forwarded-host",
+            "facildigitalmais.com"
+          );
+
+
+          headers.set(
+            "x-forwarded-proto",
+            "http"
+          );
+
+
+          headers.set(
+            "sec-fetch-site",
+            "same-origin"
+          );
+
+
+          const productionRequest =
+            new NextRequest(
+              "http://facildigitalmais.com/api/auth/login",
+              {
+                method:
+                  "POST",
+
+                headers,
+              }
+            );
+
+
+          const decision =
+            validateSameOriginMutation(
+              productionRequest
+            );
+
+
+          assert.equal(
+            decision.allowed,
+            false
+          );
+
+
+          if (
+            !decision.allowed
+          ) {
+            assert.equal(
+              decision.reason,
+              "origin_mismatch"
+            );
+          }
+        } finally {
+          if (
+            previousNodeEnv ===
+            undefined
+          ) {
+            delete process.env
+              .NODE_ENV;
+          } else {
+            process.env.NODE_ENV =
+              previousNodeEnv;
+          }
+
+
+          if (
+            previousAppBaseUrl ===
+            undefined
+          ) {
+            delete process.env
+              .APP_BASE_URL;
+          } else {
+            process.env.APP_BASE_URL =
+              previousAppBaseUrl;
+          }
+        }
+      }
+    );
+
+
+    test(
+      "produção sem APP_BASE_URL deve falhar fechado mesmo sem header Origin",
+      () => {
+        const previousNodeEnv =
+          process.env.NODE_ENV;
+
+        const previousAppBaseUrl =
+          process.env.APP_BASE_URL;
+
+
+        try {
+          process.env.NODE_ENV =
+            "production";
+
+          delete process.env
+            .APP_BASE_URL;
+
+
+          const headers =
+            new Headers();
+
+
+          /**
+           * Mesmo um cliente que alegue same-origin
+           * via Fetch Metadata não pode executar
+           * mutação quando a autoridade canônica da
+           * aplicação está ausente.
+           */
+          headers.set(
+            "sec-fetch-site",
+            "same-origin"
+          );
+
+
+          const productionRequest =
+            new NextRequest(
+              "https://facildigitalmais.com/api/auth/login",
+              {
+                method:
+                  "POST",
+
+                headers,
+              }
+            );
+
+
+          const decision =
+            validateSameOriginMutation(
+              productionRequest
+            );
+
+
+          assert.equal(
+            decision.allowed,
+            false
+          );
+
+
+          if (
+            !decision.allowed
+          ) {
+            assert.equal(
+              decision.reason,
+              "origin_mismatch"
+            );
+          }
+        } finally {
+          if (
+            previousNodeEnv ===
+            undefined
+          ) {
+            delete process.env
+              .NODE_ENV;
+          } else {
+            process.env.NODE_ENV =
+              previousNodeEnv;
+          }
+
+
+          if (
+            previousAppBaseUrl ===
+            undefined
+          ) {
+            delete process.env
+              .APP_BASE_URL;
+          } else {
+            process.env.APP_BASE_URL =
+              previousAppBaseUrl;
+          }
+        }
+      }
+    );
+
+
+    test(
+      "APP_BASE_URL com caminho não deve se tornar origem CSRF válida em produção",
+      () => {
+        const previousNodeEnv =
+          process.env.NODE_ENV;
+
+        const previousAppBaseUrl =
+          process.env.APP_BASE_URL;
+
+
+        try {
+          process.env.NODE_ENV =
+            "production";
+
+          process.env.APP_BASE_URL =
+            "https://facildigitalmais.com/aplicacao";
+
+
+          const decision =
+            validateSameOriginMutation(
+              request(
+                {
+                  origin:
+                    "https://facildigitalmais.com",
+
+                  fetchSite:
+                    "same-origin",
+                }
+              )
+            );
+
+
+          assert.equal(
+            decision.allowed,
+            false
+          );
+
+
+          if (
+            !decision.allowed
+          ) {
+            assert.equal(
+              decision.reason,
+              "origin_mismatch"
+            );
+          }
+        } finally {
+          if (
+            previousNodeEnv ===
+            undefined
+          ) {
+            delete process.env
+              .NODE_ENV;
+          } else {
+            process.env.NODE_ENV =
+              previousNodeEnv;
+          }
+
+
+          if (
+            previousAppBaseUrl ===
+            undefined
+          ) {
+            delete process.env
+              .APP_BASE_URL;
+          } else {
+            process.env.APP_BASE_URL =
+              previousAppBaseUrl;
+          }
+        }
+      }
+    );
   }
 );

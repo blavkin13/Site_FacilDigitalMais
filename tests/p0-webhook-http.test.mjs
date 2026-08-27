@@ -355,6 +355,15 @@ function commonDependencies(
           }
         ),
 
+    /**
+     * Evita qualquer acesso real ao provedor
+     * durante testes que utilizem notificações
+     * topic_chargebacks_wh.
+     */
+    getChargebackPaymentId:
+      async () =>
+        "PAYMENT-123",
+
     ...overrides,
   };
 }
@@ -1526,6 +1535,675 @@ describe(
           assert.equal(
             events[1].occurrence_count,
             2
+          );
+        } finally {
+          context.cleanup();
+        }
+      }
+    );
+
+
+    test(
+      "topic_chargebacks_wh deve usar payment_id canônico do provedor e acompanhar todo o ciclo da disputa",
+      async () => {
+        const context =
+          createContext();
+
+
+        try {
+          /**
+           * O pagamento já foi aprovado anteriormente
+           * e possui identidade financeira canônica.
+           */
+          context.insertOrder(
+            {
+              status:
+                "approved",
+
+              paymentId:
+                "PAYMENT-123",
+            }
+          );
+
+
+          let paymentSnapshot =
+            createPayment(
+              {
+                status:
+                  "charged_back",
+
+                status_detail:
+                  "in_process",
+              }
+            );
+
+
+          let chargebackCalls =
+            0;
+
+
+          const paymentIdsConsulted =
+            [];
+
+
+          const handler =
+            createMercadoPagoWebhookPostHandler(
+              commonDependencies(
+                context,
+                {
+                  getChargebackPaymentId:
+                    async (
+                      chargebackId
+                    ) => {
+                      chargebackCalls +=
+                        1;
+
+
+                      assert.equal(
+                        chargebackId,
+                        "CHARGEBACK-123"
+                      );
+
+
+                      /**
+                       * Este é o payment_id obtido
+                       * através da consulta canônica
+                       * GET /v1/chargebacks/{id}.
+                       */
+                      return "PAYMENT-123";
+                    },
+
+                  getPayment:
+                    async (
+                      paymentId
+                    ) => {
+                      paymentIdsConsulted
+                        .push(
+                          paymentId
+                        );
+
+
+                      return createPayment(
+                        {
+                          ...paymentSnapshot,
+
+                          id:
+                            paymentId,
+                        }
+                      );
+                    },
+                }
+              )
+            );
+
+
+          const createChargebackRequest =
+            () =>
+              createWebhookRequest(
+                {
+                  dataId:
+                    "CHARGEBACK-123",
+
+                  type:
+                    "topic_chargebacks_wh",
+
+                  bodyType:
+                    "topic_chargebacks_wh",
+
+                  /**
+                   * O payment_id do body é
+                   * deliberadamente falso.
+                   *
+                   * Ele jamais pode decidir qual
+                   * pedido será alterado.
+                   */
+                  rawBody:
+                    JSON.stringify(
+                      {
+                        type:
+                          "topic_chargebacks_wh",
+
+                        action:
+                          "chargeback.updated",
+
+                        data: {
+                          id:
+                            "CHARGEBACK-123",
+
+                          payment_id:
+                            "PAYMENT-FORGED",
+                        },
+                      }
+                    ),
+                }
+              );
+
+
+          /**
+           * 1. Contestação iniciada.
+           */
+          const first =
+            await handler(
+              createChargebackRequest()
+            );
+
+
+          assert.equal(
+            first.status,
+            200
+          );
+
+
+          let order =
+            context
+              .getOrders()[0];
+
+
+          assert.equal(
+            order.status,
+            "charged_back"
+          );
+
+
+          assert.equal(
+            order.mp_payment_id,
+            "PAYMENT-123"
+          );
+
+
+          let events =
+            context
+              .getLedgerEvents();
+
+
+          assert.equal(
+            events.length,
+            1
+          );
+
+
+          assert.equal(
+            events[0].mp_status,
+            "charged_back"
+          );
+
+
+          assert.equal(
+            events[0].mp_status_detail,
+            "in_process"
+          );
+
+
+          assert.equal(
+            events[0].occurrence_count,
+            1
+          );
+
+
+          /**
+           * 2. Reentrega idêntica.
+           */
+          const repeated =
+            await handler(
+              createChargebackRequest()
+            );
+
+
+          assert.equal(
+            repeated.status,
+            200
+          );
+
+
+          events =
+            context
+              .getLedgerEvents();
+
+
+          assert.equal(
+            events.length,
+            1
+          );
+
+
+          assert.equal(
+            events[0].occurrence_count,
+            2
+          );
+
+
+          /**
+           * 3. Contestação encerrada contra o
+           * vendedor: continua suspensa.
+           */
+          paymentSnapshot =
+            createPayment(
+              {
+                status:
+                  "charged_back",
+
+                status_detail:
+                  "settled",
+              }
+            );
+
+
+          const settled =
+            await handler(
+              createChargebackRequest()
+            );
+
+
+          assert.equal(
+            settled.status,
+            200
+          );
+
+
+          order =
+            context
+              .getOrders()[0];
+
+
+          assert.equal(
+            order.status,
+            "charged_back"
+          );
+
+
+          events =
+            context
+              .getLedgerEvents();
+
+
+          assert.equal(
+            events.length,
+            2
+          );
+
+
+          assert.equal(
+            events[1].mp_status_detail,
+            "settled"
+          );
+
+
+          assert.equal(
+            events[1].occurrence_count,
+            1
+          );
+
+
+          /**
+           * 4. Contestação resolvida em favor
+           * do vendedor.
+           */
+          paymentSnapshot =
+            createPayment(
+              {
+                status:
+                  "charged_back",
+
+                status_detail:
+                  "reimbursed",
+              }
+            );
+
+
+          const reimbursed =
+            await handler(
+              createChargebackRequest()
+            );
+
+
+          assert.equal(
+            reimbursed.status,
+            200
+          );
+
+
+          order =
+            context
+              .getOrders()[0];
+
+
+          assert.equal(
+            order.status,
+            "approved"
+          );
+
+
+          assert.equal(
+            order.mp_payment_id,
+            "PAYMENT-123"
+          );
+
+
+          events =
+            context
+              .getLedgerEvents();
+
+
+          assert.equal(
+            events.length,
+            3
+          );
+
+
+          assert.equal(
+            events[2].mp_status,
+            "charged_back"
+          );
+
+
+          assert.equal(
+            events[2].mp_status_detail,
+            "reimbursed"
+          );
+
+
+          assert.equal(
+            events[2].outcome,
+            "processed"
+          );
+
+
+          /**
+           * Cada notificação de contestação precisa
+           * resolver novamente o recurso autenticado
+           * no Mercado Pago.
+           */
+          assert.equal(
+            chargebackCalls,
+            4
+          );
+
+
+          /**
+           * PAYMENT-FORGED do body jamais chegou à
+           * consulta financeira.
+           */
+          assert.deepEqual(
+            paymentIdsConsulted,
+            [
+              "PAYMENT-123",
+              "PAYMENT-123",
+              "PAYMENT-123",
+              "PAYMENT-123",
+            ]
+          );
+
+
+          assert.equal(
+            paymentIdsConsulted.includes(
+              "PAYMENT-FORGED"
+            ),
+            false
+          );
+        } finally {
+          context.cleanup();
+        }
+      }
+    );
+
+
+    test(
+      "falha ao resolver topic_chargebacks_wh no provedor deve retornar 502 sem alterar pedido",
+      async () => {
+        const context =
+          createContext();
+
+
+        let paymentCalls =
+          0;
+
+
+        try {
+          context.insertOrder(
+            {
+              status:
+                "approved",
+
+              paymentId:
+                "PAYMENT-123",
+            }
+          );
+
+
+          const handler =
+            createMercadoPagoWebhookPostHandler(
+              commonDependencies(
+                context,
+                {
+                  getChargebackPaymentId:
+                    async () => {
+                      throw new MercadoPagoProviderError(
+                        "Falha simulada ao consultar contestação."
+                      );
+                    },
+
+                  getPayment:
+                    async (
+                      paymentId
+                    ) => {
+                      paymentCalls +=
+                        1;
+
+
+                      return createPayment(
+                        {
+                          id:
+                            paymentId,
+                        }
+                      );
+                    },
+                }
+              )
+            );
+
+
+          const response =
+            await handler(
+              createWebhookRequest(
+                {
+                  dataId:
+                    "CHARGEBACK-FAIL",
+
+                  type:
+                    "topic_chargebacks_wh",
+
+                  bodyType:
+                    "topic_chargebacks_wh",
+                }
+              )
+            );
+
+
+          const payload =
+            await response.json();
+
+
+          assert.equal(
+            response.status,
+            502
+          );
+
+
+          assert.equal(
+            payload.error,
+            "Payment provider unavailable"
+          );
+
+
+          /**
+           * Se nem conseguimos resolver a
+           * contestação, não consultamos pagamento.
+           */
+          assert.equal(
+            paymentCalls,
+            0
+          );
+
+
+          const order =
+            context
+              .getOrders()[0];
+
+
+          assert.equal(
+            order.status,
+            "approved"
+          );
+
+
+          assert.equal(
+            order.mp_payment_id,
+            "PAYMENT-123"
+          );
+
+
+          assert.equal(
+            context
+              .getLedgerEvents()
+              .length,
+            0
+          );
+        } finally {
+          context.cleanup();
+        }
+      }
+    );
+
+
+    test(
+      "topic_chargebacks_wh deve pedir retry enquanto Payment API ainda não refletir a contestação",
+      async () => {
+        const context =
+          createContext();
+
+
+        try {
+          context.insertOrder(
+            {
+              status:
+                "approved",
+
+              paymentId:
+                "PAYMENT-123",
+            }
+          );
+
+
+          const handler =
+            createMercadoPagoWebhookPostHandler(
+              commonDependencies(
+                context,
+                {
+                  getChargebackPaymentId:
+                    async (
+                      chargebackId
+                    ) => {
+                      assert.equal(
+                        chargebackId,
+                        "CHARGEBACK-LAG"
+                      );
+
+
+                      return "PAYMENT-123";
+                    },
+
+                  /**
+                   * Simula eventual consistency:
+                   *
+                   * o recurso chargeback já existe,
+                   * mas Payment API ainda informa
+                   * approved.
+                   */
+                  getPayment:
+                    async (
+                      paymentId
+                    ) =>
+                      createPayment(
+                        {
+                          id:
+                            paymentId,
+
+                          status:
+                            "approved",
+
+                          status_detail:
+                            "accredited",
+                        }
+                      ),
+                }
+              )
+            );
+
+
+          const response =
+            await handler(
+              createWebhookRequest(
+                {
+                  dataId:
+                    "CHARGEBACK-LAG",
+
+                  type:
+                    "topic_chargebacks_wh",
+
+                  bodyType:
+                    "topic_chargebacks_wh",
+                }
+              )
+            );
+
+
+          const payload =
+            await response.json();
+
+
+          assert.equal(
+            response.status,
+            502
+          );
+
+
+          assert.equal(
+            payload.error,
+            "Payment provider unavailable"
+          );
+
+
+          const order =
+            context
+              .getOrders()[0];
+
+
+          /**
+           * Não concedemos nem removemos entitlement
+           * com uma fotografia financeira incoerente.
+           */
+          assert.equal(
+            order.status,
+            "approved"
+          );
+
+
+          assert.equal(
+            order.mp_payment_id,
+            "PAYMENT-123"
+          );
+
+
+          /**
+           * Não registramos a fotografia como
+           * processada, pois o provedor ainda precisa
+           * convergir e reenviar a notificação.
+           */
+          assert.equal(
+            context
+              .getLedgerEvents()
+              .length,
+            0
           );
         } finally {
           context.cleanup();

@@ -281,6 +281,16 @@ Variaveis principais:
     MERCADO_PAGO_ACCESS_TOKEN
     MERCADO_PAGO_WEBHOOK_SECRET
 
+    MERCADO_PAGO_WEBHOOK_SECRET
+
+`APP_BASE_URL` e a origem canonica da aplicacao e a unica origem
+explicitamente configurada com autoridade para validacao same-origin/CSRF
+em producao.
+
+`NEXT_PUBLIC_BASE_URL` pode ser utilizada por recursos publicos de
+apresentacao e SEO, como `robots.txt` e `sitemap.xml`, mas nao concede
+autoridade de seguranca nem amplia origens permitidas para APIs autenticadas.
+
 Nunca registre senhas administrativas no README.
 
 Nunca versione access tokens ou webhook secrets.

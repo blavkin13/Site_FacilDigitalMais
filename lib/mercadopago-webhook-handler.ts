@@ -12,6 +12,7 @@ import {
 } from "../db/init";
 
 import {
+  getMercadoPagoChargebackPaymentId,
   getPaymentStatus,
   MercadoPagoProviderError,
 } from "./mercadopago";
@@ -63,6 +64,9 @@ interface MercadoPagoWebhookDependencies {
   getPayment:
     typeof getPaymentStatus;
 
+  getChargebackPaymentId:
+    typeof getMercadoPagoChargebackPaymentId;
+
   locateOrder:
     typeof locateMercadoPagoOrder;
 
@@ -90,6 +94,9 @@ const defaultDependencies:
 
     getPayment:
       getPaymentStatus,
+
+    getChargebackPaymentId:
+      getMercadoPagoChargebackPaymentId,
 
     locateOrder:
       locateMercadoPagoOrder,
@@ -306,15 +313,27 @@ export function createMercadoPagoWebhookPostHandler(
       }
 
 
+      const isPaymentNotification =
+        notification.type ===
+        "payment";
+
+
+      const isChargebackNotification =
+        notification.type ===
+        "topic_chargebacks_wh";
+
+
       /**
-       * Evento autenticado, mas fora do fluxo de
-       * pagamentos.
+       * Eventos autenticados fora dos fluxos
+       * financeiros explicitamente suportados são
+       * reconhecidos sem efeito.
        *
-       * É reconhecido sem efeito financeiro.
+       * Não fazemos consultas desnecessárias ao
+       * banco ou ao provedor para esses eventos.
        */
       if (
-        notification.type !==
-        "payment"
+        !isPaymentNotification &&
+        !isChargebackNotification
       ) {
         return NextResponse.json(
           {
@@ -338,17 +357,80 @@ export function createMercadoPagoWebhookPostHandler(
 
 
       /**
-       * O body do webhook nunca é autoridade sobre
-       * status, referência ou valor.
+       * Para webhook payment, data.id autenticado
+       * já identifica diretamente o pagamento.
        *
-       * Esses dados vêm da consulta autenticada à
-       * API do Mercado Pago.
+       * Para topic_chargebacks_wh, data.id identifica
+       * a CONTESTAÇÃO — nunca o pagamento.
+       *
+       * Nesse segundo caso consultamos primeiro o
+       * recurso autenticado de chargeback no próprio
+       * Mercado Pago e somente então obtemos o
+       * payment_id canônico.
+       *
+       * Qualquer payment_id eventualmente enviado no
+       * body original é deliberadamente ignorado.
+       */
+      let paymentId =
+        notification.dataId;
+
+
+      if (
+        isChargebackNotification
+      ) {
+        paymentId =
+          await dependencies
+            .getChargebackPaymentId(
+              notification.dataId
+            );
+      }
+
+
+      /**
+       * Status, referência, valores e moeda nunca
+       * vêm do body recebido.
+       *
+       * A fotografia financeira utilizada pela
+       * máquina de estados é sempre relida da API
+       * oficial do Mercado Pago.
        */
       const paymentStatus =
         await dependencies
           .getPayment(
-            notification.dataId
+            paymentId
           );
+
+
+      /**
+       * Uma notificação específica de contestação
+       * não pode ser reconhecida como concluída
+       * enquanto a Payment API ainda apresentar o
+       * pagamento como normalmente aprovado.
+       *
+       * Isso protege contra eventual consistency:
+       *
+       * chargeback já existe
+       *        ↓
+       * Payment API ainda não refletiu charged_back
+       *        ↓
+       * HTTP 502
+       *        ↓
+       * Mercado Pago pode reenviar
+       *
+       * refunded também é aceito porque já representa
+       * entitlement definitivamente revogado.
+       */
+      if (
+        isChargebackNotification &&
+        paymentStatus.status !==
+          "charged_back" &&
+        paymentStatus.status !==
+          "refunded"
+      ) {
+        throw new MercadoPagoProviderError(
+          "Pagamento associado à contestação ainda não refletiu estado financeiro revogado."
+        );
+      }
 
 
       const externalReference =
@@ -671,7 +753,7 @@ export function createMercadoPagoWebhookPostHandler(
         MercadoPagoProviderError
       ) {
         console.error(
-          "Falha ao consultar pagamento Mercado Pago:",
+          "Falha ao consultar recurso financeiro Mercado Pago:",
           error.message
         );
 

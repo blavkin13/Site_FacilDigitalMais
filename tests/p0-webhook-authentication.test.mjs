@@ -397,6 +397,108 @@ describe(
 
 
     test(
+      "payload oficial topic_chargebacks_wh com actions deve ser aceito sem confiar em data.payment_id",
+      () => {
+        const result =
+          parseMercadoPagoWebhookNotification(
+            {
+              /**
+               * Este é o identificador autenticado
+               * utilizado na assinatura do webhook.
+               *
+               * Para topic_chargebacks_wh ele
+               * representa a CONTESTAÇÃO.
+               */
+              signedDataId:
+                "CHARGEBACK-123",
+
+              queryType:
+                "topic_chargebacks_wh",
+
+              rawBody:
+                JSON.stringify(
+                  {
+                    type:
+                      "topic_chargebacks_wh",
+
+                    /**
+                     * Chargebacks podem utilizar
+                     * actions em vez do campo
+                     * singular action.
+                     *
+                     * O parser não precisa interpretar
+                     * essas ações para determinar
+                     * autoridade financeira.
+                     */
+                    actions: [
+                      "changed_case_status",
+                    ],
+
+                    data: {
+                      id:
+                        "CHARGEBACK-123",
+
+                      /**
+                       * Valor propositalmente falso.
+                       *
+                       * O parser de notificação não
+                       * promove este campo a dataId
+                       * nem o utiliza como identidade
+                       * financeira.
+                       *
+                       * O payment_id canônico será
+                       * obtido posteriormente por
+                       * GET /v1/chargebacks/{id}.
+                       */
+                      payment_id:
+                        "PAYMENT-FORGED",
+                    },
+                  }
+                ),
+            }
+          );
+
+
+        assert.deepEqual(
+          result,
+          {
+            type:
+              "topic_chargebacks_wh",
+
+            /**
+             * Deve continuar sendo o ID da
+             * contestação autenticada.
+             */
+            dataId:
+              "CHARGEBACK-123",
+
+            /**
+             * actions[] não deve ser convertido
+             * artificialmente para action.
+             */
+            action:
+              null,
+          }
+        );
+
+
+        /**
+         * Defesa estrutural adicional:
+         * o payment_id não faz parte da estrutura
+         * devolvida pelo parser de notificação.
+         */
+        assert.equal(
+          Object.hasOwn(
+            result,
+            "paymentId"
+          ),
+          false
+        );
+      }
+    );
+
+
+    test(
       "data.id do body deve coincidir com data.id autenticado",
       () => {
         assert.throws(
@@ -574,6 +676,20 @@ describe(
         assert.match(
           source,
           /getPaymentStatus/
+        );
+
+
+        assert.match(
+          source,
+          /getMercadoPagoChargebackPaymentId/,
+          "Webhook deve resolver contestação pelo recurso canônico do Mercado Pago"
+        );
+
+
+        assert.match(
+          source,
+          /topic_chargebacks_wh/,
+          "Webhook deve reconhecer notificações oficiais de chargeback"
         );
 
 

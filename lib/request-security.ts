@@ -2,6 +2,11 @@ import type {
   NextRequest,
 } from "next/server";
 
+import {
+  getAppBaseUrl,
+  PaymentConfigurationError,
+} from "./payment-config";
+
 
 const SAFE_METHODS =
   new Set([
@@ -190,20 +195,6 @@ function addHeaderDerivedOrigin(
 }
 
 
-/**
- * Calcula as origens pelas quais esta requisição
- * legitimamente pode ter chegado.
- *
- * Isso é necessário porque, atrás de:
- *
- * - GitHub Codespaces;
- * - Nginx;
- * - outro reverse proxy;
- *
- * request.nextUrl.origin pode representar a
- * comunicação interna, enquanto Origin representa
- * a URL pública utilizada pelo navegador.
- */
 export function getAllowedRequestOrigins(
   request:
     NextRequest
@@ -212,16 +203,64 @@ export function getAllowedRequestOrigins(
     new Set<string>();
 
 
+  const isProduction =
+    process.env
+      .NODE_ENV
+      ?.trim()
+      .toLowerCase() ===
+    "production";
+
+
   /**
-   * Origem que o próprio Next.js calculou.
+   * Produção possui uma única autoridade pública:
+   * APP_BASE_URL.
+   *
+   * A validação é exatamente a mesma utilizada pelo
+   * checkout:
+   *
+   * - variável obrigatória;
+   * - HTTPS obrigatório;
+   * - host público;
+   * - sem credenciais;
+   * - sem path;
+   * - sem query;
+   * - sem fragmento.
+   *
+   * Uma configuração inválida não cria nenhuma
+   * origem confiável.
    */
-  allowed.add(
-    request.nextUrl.origin
-  );
+  if (
+    isProduction
+  ) {
+    try {
+      allowed.add(
+        getAppBaseUrl(
+          process.env
+        )
+      );
+    } catch (error) {
+      if (
+        error instanceof
+        PaymentConfigurationError
+      ) {
+        return allowed;
+      }
+
+
+      throw error;
+    }
+
+
+    return allowed;
+  }
 
 
   /**
-   * Origem explicitamente configurada.
+   * Fora de produção APP_BASE_URL continua podendo
+   * representar explicitamente o ambiente local.
+   *
+   * NEXT_PUBLIC_BASE_URL permanece deliberadamente
+   * fora da política de segurança.
    */
   addConfiguredOrigin(
     allowed,
@@ -230,18 +269,19 @@ export function getAllowedRequestOrigins(
   );
 
 
-  addConfiguredOrigin(
-    allowed,
-    process.env
-      .NEXT_PUBLIC_BASE_URL
+  /**
+   * Em desenvolvimento/testes mantemos suporte
+   * para acesso direto e ambientes intermediados
+   * como GitHub Codespaces.
+   */
+  allowed.add(
+    request.nextUrl.origin
   );
 
 
   /**
-   * Origem pública preservada pelo reverse proxy.
-   *
-   * GitHub Codespaces e Nginx normalmente
-   * encaminham esses valores.
+   * Origem pública preservada por proxy de
+   * desenvolvimento.
    */
   const forwardedHost =
     firstForwardedValue(
@@ -273,14 +313,11 @@ export function getAllowedRequestOrigins(
 
 
   /**
-   * Host é um header controlado pela camada HTTP
-   * do navegador/proxy e é mais confiável para
-   * este propósito do que tentar adivinhar a URL
-   * pública a partir de localhost.
+   * Compatibilidade local quando não existe
+   * X-Forwarded-Host.
    *
-   * Se X-Forwarded-Proto existir, preservamos o
-   * protocolo externo. Caso contrário usamos o
-   * protocolo percebido pelo Next.js.
+   * Host e headers de proxy nunca criam autoridade
+   * em produção.
    */
   const host =
     request.headers.get(
@@ -374,6 +411,43 @@ export function validateSameOriginMutation(
   }
 
 
+  const isProduction =
+    process.env
+      .NODE_ENV
+      ?.trim()
+      .toLowerCase() ===
+    "production";
+
+
+  /**
+   * Em produção, uma API mutável não pode operar
+   * sem uma autoridade canônica válida.
+   *
+   * Isso também protege requisições que não trazem
+   * Origin, pois anteriormente getAllowedRequestOrigins
+   * só era consultado dentro dessa ramificação.
+   */
+  const allowedOrigins =
+    getAllowedRequestOrigins(
+      request
+    );
+
+
+  if (
+    isProduction &&
+    allowedOrigins.size ===
+      0
+  ) {
+    return {
+      allowed:
+        false,
+
+      reason:
+        "origin_mismatch",
+    };
+  }
+
+
   const rawOrigin =
     request.headers.get(
       "origin"
@@ -401,12 +475,6 @@ export function validateSameOriginMutation(
           "invalid_origin",
       };
     }
-
-
-    const allowedOrigins =
-      getAllowedRequestOrigins(
-        request
-      );
 
 
     if (
